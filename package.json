@@ -1,0 +1,11 @@
+{
+  "name": "digitallydefined-backend-clean",
+  "version": "1.0.0",
+  "type": "module",
+  "engines": {
+    "node": "20.x"
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  }
+}
