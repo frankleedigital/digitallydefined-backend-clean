@@ -45,19 +45,19 @@ export const MODEL_MODES = {
   freeMode: {
     name: 'Free',
     description: 'OmniRoute free models - basic capability',
-    providers: ['omniroute'],
+    providers: ['vertex-gemini'],
     models: ['dd-combo'],
   },
   proMode: {
     name: 'Pro',
     description: 'OmniRoute paid models - enhanced capability',
-    providers: ['omniroute'],
+    providers: ['vertex-gemini'],
     models: ['dd-pro', 'dd-premium'],
   },
   ultraMode: {
     name: 'Ultra',
     description: 'Gemini API via Google Cloud credits - highest quality',
-    providers: ['gemini'],
+    providers: ['vertex-gemini'],
     models: ['gemini-2.0-flash', 'gemini-2.0-pro'],
   },
 };
@@ -67,6 +67,12 @@ export const SUPPORTED_INTEGRATIONS = {
   brevo: { name: 'Brevo', requiredEnv: ['BREVO_API_KEY'] },
   sheets: { name: 'Google Sheets', requiredEnv: ['SHEETS_WEBHOOK_URL'] },
   notion: { name: 'Notion', requiredEnv: ['NOTION_API_KEY'] },
+};
+
+export const AI_PROVIDER_ORDER = {
+  primary: 'vertex-gemini',
+  fallbacks: ['openrouter', 'agnes'],
+  disabled: ['omniroute'],
 };
 
 export default {
@@ -84,4 +90,5 @@ export default {
   DEFAULT_CHAT_SYSTEM_PROMPT,
   MODEL_MODES,
   SUPPORTED_INTEGRATIONS,
+  AI_PROVIDER_ORDER,
 };

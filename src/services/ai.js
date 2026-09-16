@@ -1,16 +1,17 @@
 // src/services/ai.js - Unified AI Service
-// Supports: OmniRoute, Gemini, Cheaper Inference
-// Modes: freeMode, proMode, ultraMode
-
+// PRIMARY: Vertex AI Gemini (via aiRouter.generate) | FALLBACK: OpenRouter, Agnes
+// DISABLED: OmniRoute (legacy code kept below - never called)
 import env from '../config/env.js';
 import constants from '../config/constants.js';
 import logger from '../utils/logger.js';
 import { ExternalError, ValidationError } from '../utils/errorHandler.js';
+import { aiRouter } from './aiRouter.js';
 
 const AI_CONFIG = {
-  omniroute: { enabled: !!env.omniroute.apiKey, baseUrl: env.omniroute.baseUrl, apiKey: env.omniroute.apiKey, defaultModel: env.omniroute.model },
-  gemini: { enabled: !!env.gemini.apiKey, baseUrl: env.gemini.baseUrl, apiKey: env.gemini.apiKey, defaultModel: env.gemini.model },
-  cheaperInference: { enabled: !!env.cheaperInference.apiKey && !!env.cheaperInference.baseUrl, baseUrl: env.cheaperInference.baseUrl, apiKey: env.cheaperInference.apiKey, defaultModel: env.cheaperInference.model || "auto" },
+  // DISABLED: OmniRoute is off the critical path. enabled is hard-coded false.
+  omniroute: { enabled: false, baseUrl: env.omniroute.baseUrl, apiKey: env.omniroute.apiKey, defaultModel: env.omniroute.model },
+  gemini: { enabled: !!env.gemini.apiKey, baseUrl: env.gemini.baseUrl, apiKey: env.gemini.apiKey, defaultModel: env.vertex.model || env.gemini.model },
+  cheaperInference: { enabled: !!env.cheaperInference.apiKey && !!env.cheaperInference.baseUrl, baseUrl: env.cheaperInference.baseUrl, apiKey: env.cheaperInference.apiKey, defaultModel: env.cheaperInference.model || 'auto' },
 };
 
 export function selectModel(mode = "freeMode") {
@@ -97,53 +98,27 @@ async function callCheaperInference(messages, model, timeoutMs = constants.AI_TI
 }
 
 export async function callAI(prompt, options = {}) {
-  const { mode = "freeMode", systemPrompt, model: modelOverride, jsonMode = false, timeoutMs = constants.AI_TIMEOUT_MS } = options;
-  if (!prompt || typeof prompt !== "string" || !prompt.trim()) throw new ValidationError("Invalid prompt: must be a non-empty string");
-  if (!env.omniroute.apiKey && !env.gemini.apiKey && !env.cheaperInference.apiKey) throw new ExternalError("No AI API key configured", "AI");
-  let modelConfig;
-  try { modelConfig = selectModel(mode); } catch (error) {
-    if (AI_CONFIG.omniroute.enabled) modelConfig = { provider: "omniroute", model: AI_CONFIG.omniroute.defaultModel || "dd-combo", baseUrl: AI_CONFIG.omniroute.baseUrl, apiKey: AI_CONFIG.omniroute.apiKey };
-    else if (AI_CONFIG.gemini.enabled) modelConfig = { provider: "gemini", model: AI_CONFIG.gemini.defaultModel || "gemini-2.0-flash", baseUrl: AI_CONFIG.gemini.baseUrl, apiKey: AI_CONFIG.gemini.apiKey };
-    else throw error;
+  const { mode = 'freeMode', systemPrompt, model: modelOverride, jsonMode = false } = options;
+  if (!prompt || typeof prompt !== 'string' || !prompt.trim()) throw new ValidationError('Invalid prompt: must be a non-empty string');
+
+  // Route through aiRouter: Vertex Gemini -> OpenRouter -> Agnes. OmniRoute disabled.
+  const result = await aiRouter.generate(modelOverride || null, prompt, { mode, systemPrompt, jsonMode });
+
+  if (jsonMode && result.reply && typeof result.reply === 'string') {
+    try {
+      const cleaned = result.reply.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+      return { reply: JSON.parse(cleaned), provider: result.provider, model: result.model, jsonParsed: true };
+    } catch { return result; }
   }
-  const messages = buildMessages(prompt, systemPrompt);
-  const providerCallMap = { omniroute: callOmniRoute, gemini: callGemini, cheaperInference: callCheaperInference };
-  const primaryCall = providerCallMap[modelConfig.provider];
-  if (!primaryCall) throw new ExternalError("Unknown provider: " + modelConfig.provider, modelConfig.provider);
-  try {
-    const result = await primaryCall(messages, modelOverride || modelConfig.model, timeoutMs);
-    if (jsonMode && result.reply) {
-      try {
-        const cleaned = result.reply.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
-        return { reply: JSON.parse(cleaned), provider: result.provider, model: result.model, jsonParsed: true };
-      } catch { return result; }
-    }
-    return result;
-  } catch (error) {
-    logger.warn("Primary AI call failed, attempting fallback", { provider: modelConfig.provider, error: error.message });
-    const fallbackProviders = [];
-    if (modelConfig.provider !== "omniroute" && AI_CONFIG.omniroute.enabled) fallbackProviders.push("omniroute");
-    if (modelConfig.provider !== "gemini" && AI_CONFIG.gemini.enabled) fallbackProviders.push("gemini");
-    if (modelConfig.provider !== "cheaperInference" && AI_CONFIG.cheaperInference.enabled) fallbackProviders.push("cheaperInference");
-    for (const fallbackProvider of fallbackProviders) {
-      try {
-        const fallbackCall = providerCallMap[fallbackProvider];
-        const fallbackModel = fallbackProvider === "omniroute" ? AI_CONFIG.omniroute.defaultModel : fallbackProvider === "gemini" ? AI_CONFIG.gemini.defaultModel : AI_CONFIG.cheaperInference.defaultModel;
-        const fallbackResult = await fallbackCall(messages, modelOverride || fallbackModel, timeoutMs);
-        logger.info("Fallback AI call succeeded", { from: modelConfig.provider, to: fallbackProvider });
-        return fallbackResult;
-      } catch (fallbackError) { logger.warn("Fallback AI call also failed", { provider: fallbackProvider, error: fallbackError.message }); }
-    }
-    throw new ExternalError("All AI providers failed. Last error: " + error.message, "AI");
-  }
+  return result;
 }
 
-export function isAIConfigured() { return !!(env.omniroute.apiKey || env.gemini.apiKey || env.cheaperInference.apiKey); }
+export function isAIConfigured() { return aiRouter.isVertexConfigured() || aiRouter.isOpenRouterConfigured() || aiRouter.isAgnesConfigured(); }
 export function getAvailableModels() {
   const models = [];
-  if (AI_CONFIG.omniroute.enabled) models.push({ provider: "OmniRoute", mode: "freeMode", models: ["dd-combo", "dd-pro", "dd-premium"], apiKeySet: true });
-  if (AI_CONFIG.gemini.enabled) models.push({ provider: "Gemini (Google Cloud)", mode: "ultraMode", models: ["gemini-2.0-flash", "gemini-2.0-pro"], apiKeySet: true });
-  if (AI_CONFIG.cheaperInference.enabled) models.push({ provider: "Cheaper Inference", mode: "proMode", models: ["auto"], apiKeySet: true });
+  if (aiRouter.isVertexConfigured()) models.push({ provider: 'Vertex AI Gemini (PRIMARY)', mode: 'all', models: [env.vertex.model || 'gemini-1.5-flash'], apiKeySet: true });
+  if (aiRouter.isOpenRouterConfigured()) models.push({ provider: 'OpenRouter (fallback)', mode: 'optional', models: [env.openrouter.model || 'openai/gpt-4o-mini'], apiKeySet: true });
+  if (aiRouter.isAgnesConfigured()) models.push({ provider: 'Agnes (fallback)', mode: 'optional', models: [env.agnes.model || 'default'], apiKeySet: true });
   return models;
 }
 export function parseJsonReply(reply) {

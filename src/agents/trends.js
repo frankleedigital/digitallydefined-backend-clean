@@ -1,7 +1,8 @@
 // src/agents/trends.js - Trends Agent
 // Purpose: Identify trending topics and emerging opportunities.
 
-import { callAI, parseJsonReply } from '../services/ai.js';
+import { parseJsonReply } from '../services/ai.js';
+import { aiRouter } from '../services/aiRouter.js';
 import { trendsRequestSchema } from '../schemas/trends.js';
 import logger from '../utils/logger.js';
 
@@ -31,7 +32,7 @@ export async function identifyTrends(params) {
     (platforms && platforms.length ? '\nPlatforms: ' + platforms.join(', ') : '') +
     '\n\nFocus on faceless digital product opportunities.';
 
-  const result = await callAI(userPrompt, { mode: mode, systemPrompt: systemPrompt, jsonMode: true });
+  const result = await aiRouter.generate(null, userPrompt, { mode: mode, systemPrompt: systemPrompt, jsonMode: true });
   if (result.error) throw result.error;
 
   const parsed = parseJsonReply(typeof result.reply === 'string' ? result.reply : JSON.stringify(result.reply));

@@ -1,7 +1,8 @@
 // src/agents/product.js - Product Agent
 // Purpose: Generate product concepts, features, and launch strategies.
 
-import { callAI, parseJsonReply } from '../services/ai.js';
+import { parseJsonReply } from '../services/ai.js';
+import { aiRouter } from '../services/aiRouter.js';
 import { productRequestSchema } from '../schemas/product.js';
 import logger from '../utils/logger.js';
 
@@ -35,7 +36,7 @@ export async function generateProduct(params) {
     (priceRange ? '\nPrice range: ' + priceRange : '') +
     '\n\nFocus on faceless, automatable delivery with no on-camera requirement.';
 
-  const result = await callAI(userPrompt, { mode: mode, systemPrompt: systemPrompt, jsonMode: true });
+  const result = await aiRouter.generate(null, userPrompt, { mode: mode, systemPrompt: systemPrompt, jsonMode: true });
   if (result.error) throw result.error;
 
   const parsed = parseJsonReply(typeof result.reply === 'string' ? result.reply : JSON.stringify(result.reply));

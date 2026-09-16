@@ -1,7 +1,8 @@
 // src/agents/niche.js - Niche Agent
 // Purpose: Generate niche analysis with demand, competition, and monetization assessment.
 
-import { callAI, parseJsonReply, validateAgainstSchema } from '../services/ai.js';
+import { parseJsonReply, validateAgainstSchema } from '../services/ai.js';
+import { aiRouter } from '../services/aiRouter.js';
 import { nicheRequestSchema } from '../schemas/niche.js';
 import logger from '../utils/logger.js';
 
@@ -39,7 +40,7 @@ export async function analyzeNiche(params) {
     (context ? '\n\nAdditional context: ' + context : '') +
     '\n\nAnalyze: ' + (analyzeCompetitors ? 'Competitors' : 'N/A') + ' | ' + (analyzeDemand ? 'Demand' : 'N/A') + ' | ' + (analyzeMonetization ? 'Monetization' : 'N/A');
 
-  const result = await callAI(userPrompt, {
+  const result = await aiRouter.generate(null, userPrompt, {
     mode: mode,
     systemPrompt: systemPrompt,
     jsonMode: true,

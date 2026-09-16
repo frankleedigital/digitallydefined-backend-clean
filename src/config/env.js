@@ -100,6 +100,26 @@ const env = {
     model: (process.env.CHEAPER_INFERENCE_MODEL || '').trim(),
   },
 
+  // Vertex AI Gemini (PRIMARY AI provider)
+  vertex: {
+    projectId: (process.env.VERTEX_PROJECT_ID || '').trim(),
+    location: (process.env.VERTEX_LOCATION || 'us-central1').trim(),
+    model: (process.env.VERTEX_MODEL || 'gemini-1.5-flash').trim(),
+  },
+
+  // OpenRouter (optional fallback)
+  openrouter: {
+    apiKey: (process.env.OPENROUTER_API_KEY || '').trim(),
+    model: (process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini').trim(),
+  },
+
+  // Agnes (optional fallback)
+  agnes: {
+    apiKey: (process.env.AGNES_API_KEY || '').trim(),
+    baseUrl: (process.env.AGNES_BASE_URL || '').trim(),
+    model: (process.env.AGNES_MODEL || 'default').trim(),
+  },
+
   // Notion
   notion: {
     apiKey: (process.env.NOTION_API_KEY || '').trim(),
@@ -284,7 +304,25 @@ function parseJsonArray(str) {
 
 // Validation helpers
 export function isAiConfigured() {
-  return !!(env.omniroute.apiKey || (env.gemini.apiKey && env.gemini.apiKey.length > 0) || env.cheaperInference.apiKey);
+  // Primary is Vertex Gemini; OpenRouter/Agnes are optional fallbacks.
+  return isVertexConfigured() || isOpenRouterConfigured() || isAgnesConfigured();
+}
+
+export function isVertexConfigured() {
+  return !!(env.gemini.apiKey && env.gemini.apiKey.length > 0);
+}
+
+export function isOpenRouterConfigured() {
+  return !!(env.openrouter.apiKey && env.openrouter.apiKey.length > 0);
+}
+
+export function isAgnesConfigured() {
+  return !!(env.agnes.apiKey && env.agnes.baseUrl);
+}
+
+/** OmniRoute is DISABLED - kept for reference only. */
+export function isOmniRouteEnabled() {
+  return false;
 }
 
 export function isNotionConfigured() {
@@ -351,13 +389,22 @@ export const REQUIRED_VARS = [
   { key: 'SUPABASE_URL', value: () => env.supabase.url, purpose: 'Supabase project URL' },
   { key: 'SUPABASE_ANON_KEY', value: () => env.supabase.anonKey, purpose: 'Supabase public anon key' },
   { key: 'SUPABASE_SERVICE_ROLE_KEY', value: () => env.supabase.serviceRoleKey, purpose: 'Supabase service-role key (server writes)' },
-  { key: 'OMNIROUTE_BASE_URL', value: () => env.omniroute.baseUrl, purpose: 'OmniRoute gateway base URL' },
-  { key: 'OMNIROUTE_API_KEY', value: () => env.omniroute.apiKey, purpose: 'OmniRoute gateway API key' },
-  { key: 'OMNIROUTE_MODEL', value: () => env.omniroute.model, purpose: 'Default OmniRoute model' },
+  { key: 'VERTEX_PROJECT_ID', value: () => env.vertex.projectId, purpose: 'Vertex AI GCP project id (primary AI provider)' },
+  { key: 'VERTEX_LOCATION', value: () => env.vertex.location, purpose: 'Vertex AI region (e.g. us-central1)' },
+  { key: 'VERTEX_MODEL', value: () => env.vertex.model, purpose: 'Vertex AI Gemini model id' },
+  { key: 'GEMINI_API_KEY', value: () => env.gemini.apiKey, purpose: 'Gemini API key (x-goog-api-key for Vertex/express mode)' },
 ];
 
 export const OPTIONAL_VARS = [
-  { key: 'GEMINI_API_KEY', value: () => env.gemini.apiKey, purpose: 'Gemini fallback provider' },
+  { key: 'OPENROUTER_API_KEY', value: () => env.openrouter.apiKey, purpose: 'OpenRouter fallback provider' },
+  { key: 'OPENROUTER_MODEL', value: () => env.openrouter.model, purpose: 'OpenRouter model id' },
+  { key: 'AGNES_API_KEY', value: () => env.agnes.apiKey, purpose: 'Agnes fallback provider' },
+  { key: 'AGNES_BASE_URL', value: () => env.agnes.baseUrl, purpose: 'Agnes gateway base URL' },
+  { key: 'AGNES_MODEL', value: () => env.agnes.model, purpose: 'Agnes model id' },
+  // OmniRoute is OPTIONAL/DISABLED - keys kept for reference only.
+  { key: 'OMNIROUTE_BASE_URL', value: () => env.omniroute.baseUrl, purpose: 'OmniRoute gateway base URL (disabled)' },
+  { key: 'OMNIROUTE_API_KEY', value: () => env.omniroute.apiKey, purpose: 'OmniRoute gateway API key (disabled)' },
+  { key: 'OMNIROUTE_MODEL', value: () => env.omniroute.model, purpose: 'Default OmniRoute model (disabled)' },
   { key: 'CHEAPER_INFERENCE_API_KEY', value: () => env.cheaperInference.apiKey, purpose: 'Cheaper Inference provider' },
   { key: 'FASTAPI_BASE_URL', value: () => env.fastapi.baseUrl, purpose: 'FastAPI microservice layer' },
   { key: 'FASTAPI_API_KEY', value: () => env.fastapi.apiKey, purpose: 'FastAPI shared auth key' },
@@ -446,10 +493,19 @@ export function getIntegrationReport() {
     auth: isAuthConfigured(),
     supabase: isSupabaseConfigured(),
     ai: {
-      omniroute: !!env.omniroute.apiKey && !!env.omniroute.baseUrl,
+      primary: 'vertex-gemini',
+      vertex: isVertexConfigured(),
+      vertexModel: env.vertex.model,
+      vertexProjectId: env.vertex.projectId || null,
+      vertexLocation: env.vertex.location,
+      fallbacks: [
+        ...(isOpenRouterConfigured() ? ['openrouter'] : []),
+        ...(isAgnesConfigured() ? ['agnes'] : []),
+      ],
+      openrouter: isOpenRouterConfigured(),
+      agnes: isAgnesConfigured(),
+      omniroute: false,
       omnirouteUrl: env.omniroute.baseUrl,
-      omnirouteModel: env.omniroute.model,
-      gemini: !!(env.gemini.apiKey && env.gemini.apiKey.length > 0),
       cheaperInference: !!env.cheaperInference.apiKey,
     },
     fastapi: isFastapiConfigured(),

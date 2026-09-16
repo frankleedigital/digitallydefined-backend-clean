@@ -1,7 +1,8 @@
 // src/agents/scorecard.js - Scorecard Agent
 // Purpose: Evaluate business performance across multiple dimensions.
 
-import { callAI, parseJsonReply } from '../services/ai.js';
+import { parseJsonReply } from '../services/ai.js';
+import { aiRouter } from '../services/aiRouter.js';
 import { scorecardRequestSchema } from '../schemas/scorecard.js';
 import logger from '../utils/logger.js';
 
@@ -37,7 +38,7 @@ export async function generateScorecard(params) {
     (metrics ? '\nKnown metrics: ' + JSON.stringify(metrics) : '') +
     '\nDimensions to score: ' + dims.join(', ');
 
-  const result = await callAI(userPrompt, { mode: mode, systemPrompt: systemPrompt, jsonMode: true });
+  const result = await aiRouter.generate(null, userPrompt, { mode: mode, systemPrompt: systemPrompt, jsonMode: true });
   if (result.error) throw result.error;
 
   const parsed = parseJsonReply(typeof result.reply === 'string' ? result.reply : JSON.stringify(result.reply));

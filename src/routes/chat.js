@@ -2,7 +2,7 @@
 // Purpose: Handle /api/chat endpoint for conversational AI (Hermes).
 
 import { chatRequestSchema } from '../schemas/chat.js';
-import { callAI } from '../services/ai.js';
+import { aiRouter } from '../services/aiRouter.js';
 import { ValidationError } from '../utils/errorHandler.js';
 import { checkDashboardApiKey } from '../middleware/auth.js';
 import constants from '../config/constants.js';
@@ -39,7 +39,7 @@ export async function handleChat(req, res) {
       prompt = 'Conversation so far:\n' + transcript + '\n\nUSER: ' + params.message;
     }
 
-    const result = await callAI(prompt, {
+    const result = await aiRouter.generate(null, prompt, {
       mode: params.mode,
       systemPrompt: params.systemPrompt || constants.DEFAULT_CHAT_SYSTEM_PROMPT,
       jsonMode: false,

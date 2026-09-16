@@ -1,7 +1,8 @@
 // src/agents/social.js - Social Agent
 // Purpose: Create faceless social media content for various platforms.
 
-import { callAI, parseJsonReply } from '../services/ai.js';
+import { parseJsonReply } from '../services/ai.js';
+import { aiRouter } from '../services/aiRouter.js';
 import { socialRequestSchema } from '../schemas/social.js';
 import logger from '../utils/logger.js';
 
@@ -30,7 +31,7 @@ export async function generateSocialContent(params) {
     (tone ? '\nTone: ' + tone : '\nTone: direct, practical, no hype') +
     '\n\nEvery post must be faceless (text, static, or screen-recording friendly).';
 
-  const result = await callAI(userPrompt, { mode: mode, systemPrompt: systemPrompt, jsonMode: true });
+  const result = await aiRouter.generate(null, userPrompt, { mode: mode, systemPrompt: systemPrompt, jsonMode: true });
   if (result.error) throw result.error;
 
   const parsed = parseJsonReply(typeof result.reply === 'string' ? result.reply : JSON.stringify(result.reply));

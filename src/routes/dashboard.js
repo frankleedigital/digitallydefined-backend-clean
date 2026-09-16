@@ -1,7 +1,7 @@
 // src/routes/dashboard.js
 import { checkDashboardApiKey } from '../middleware/auth.js';
 import { fetchFacebookGroup, fetchBrevoStats, fetchSheetsData } from '../services/integrations.js';
-import { callAI } from '../services/ai.js';
+import { aiRouter } from '../services/aiRouter.js';
 import { getNotionStatus } from '../services/notion.js';
 import { formatUSD, safeNumber, safeString, stripMarkdown } from '../utils/formatters.js';
 import logger from '../utils/logger.js';
@@ -32,7 +32,7 @@ export async function handleDashboard(req, res) {
 
     let aiBrief = 'AI brief disabled';
     if (context.includeAiBrief !== false) {
-      const aiBriefResult = await callAI('Generate a brief business intelligence summary based on: Community: ' + communityCount + ', Email subscribers: ' + ((brevoData && brevoData.totalSubscribers) || 0) + ', Revenue: ' + revenue, { mode: 'ultraMode', systemPrompt: 'You are a business analyst.' });
+      const aiBriefResult = await aiRouter.generate(null, 'Generate a brief business intelligence summary based on: Community: ' + communityCount + ', Email subscribers: ' + ((brevoData && brevoData.totalSubscribers) || 0) + ', Revenue: ' + revenue, { mode: 'ultraMode', systemPrompt: 'You are a business analyst.' });
       aiBrief = aiBriefResult.error ? 'Unable to generate AI brief' : stripMarkdown(aiBriefResult.reply);
     }
 

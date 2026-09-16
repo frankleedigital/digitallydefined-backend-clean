@@ -1,7 +1,8 @@
 // src/agents/roadmap.js - Roadmap Agent
 // Purpose: Generate strategic roadmap with phases, objectives, and milestones.
 
-import { callAI, parseJsonReply } from '../services/ai.js';
+import { parseJsonReply } from '../services/ai.js';
+import { aiRouter } from '../services/aiRouter.js';
 import { roadmapRequestSchema } from '../schemas/roadmap.js';
 import logger from '../utils/logger.js';
 
@@ -37,7 +38,7 @@ export async function generateRoadmap(params) {
     'Focus priority: ' + priority + ' (' + priorityLabel + ')\n\n' +
     'Structure your response as a phased approach with clear milestones, deliverables, and success metrics.';
 
-  const result = await callAI(userPrompt, {
+  const result = await aiRouter.generate(null, userPrompt, {
     mode: mode,
     systemPrompt: systemPrompt,
     jsonMode: true,
