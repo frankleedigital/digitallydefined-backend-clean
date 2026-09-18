@@ -44,3 +44,4 @@ export {
   postToSheetsWebhook,
   getAllIntegrationStatus,
 } from './integrations.js';
+export { default as antigravity } from './antigravity.js';

@@ -68,8 +68,17 @@ export async function handleDispatch(req, res) {
   // Notion
   if (action.startsWith('notion.')) return res.status(200).json({ ok: true, message: 'Notion handler scaffolded' });
 
-  // Antigravity (Notion Architect MCP)
-  if (action.startsWith('antigravity.')) return res.status(200).json({ ok: true, message: 'Antigravity handler scaffolded' });
+    // Antigravity (Notion Architect)
+  if (action.startsWith('antigravity.')) {
+    try {
+      const am = await import('./antigravity.js');
+      const handler = am.default?.handleAntigravity || am.handleAntigravity;
+      return await handler(req, res);
+    } catch (err) {
+      logger.error('Antigravity dispatch failed', { action, error: err.message });
+      return res.status(500).json({ ok: false, action, error: err.message || 'Antigravity failed' });
+    }
+  }
 
   // Website content
   if (action === 'website.content') {
