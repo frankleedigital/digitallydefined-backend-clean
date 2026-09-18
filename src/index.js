@@ -40,7 +40,7 @@ app.get('/api/health', (req, res) => {
     version: '1.0.0',
     timestamp: Date.now(),
     env: env.nodeEnv,
-    aiProvider: 'vertex-gemini',
+    aiProvider: report.ai.primary || 'none',
     aiFallbacks: (getIntegrationReport().ai.fallbacks || []).join(', ') || 'none',
     configured: report,
     missingRequired: envValidation.missingRequired,
@@ -77,8 +77,8 @@ app.get('/api/test-env', (req, res) => {
       antigravity: 'MCP Notion Architect - requires ANTIGRAVITY_API_KEY',
       hermes: 'Hermes MCP Gateway - requires HERMES_GATEWAY_URL',
       supabase: 'Database - requires SUPABASE_URL and SUPABASE_ANON_KEY',
-      vertex: 'Primary AI provider - Vertex AI Gemini (' + env.vertex.model + ')',
-      omniroute: 'DISABLED - optional only, not on critical path',
+      vertex: 'Vertex AI Gemini fallback - requires VERTEX_PROJECT_ID (optional)',
+      omniroute: 'PRIMARY AI provider - OmniRoute via Cloudflare tunnel (' + env.omniroute.model + ')',
     },
   });
 });

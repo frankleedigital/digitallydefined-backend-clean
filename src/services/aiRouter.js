@@ -1,9 +1,9 @@
 // src/services/aiRouter.js - AI provider routing
 // ============================================================================
-// PRIMARY:   Vertex AI Gemini        (required)
-// FALLBACK1: OpenRouter              (optional - only if OPENROUTER_API_KEY)
-// FALLBACK2: Agnes                   (optional - only if AGNES_API_KEY)
-// DISABLED:  OmniRoute               (code kept, never called)
+// PRIMARY:   OmniRoute                 (API gateway - uses your tunnel)
+// FALLBACK1: Vertex AI Gemini          (optional - only if GEMINI_API_KEY)
+// FALLBACK2: OpenRouter                (optional - only if OPENROUTER_API_KEY)
+// FALLBACK3: Agnes                     (optional - only if AGNES_API_KEY)
 // ============================================================================
 import env from '../config/env.js';
 import constants from '../config/constants.js';
@@ -33,8 +33,8 @@ export function isAgnesConfigured() {
   return !!(env.agnes.apiKey && env.agnes.baseUrl);
 }
 export function isOmniRouteConfigured() {
-  // OmniRoute is DISABLED - always false regardless of keys present.
-  return false;
+  // OmniRoute is enabled when API key and base URL are provided.
+  return !!(env.omniroute.apiKey && env.omniroute.baseUrl && env.omniroute.baseUrl.length > 0);
 }
 
 // Shared helpers
@@ -170,17 +170,82 @@ export async function callAgnes(model, prompt, options = {}) {
   }
 }
 
-// DISABLED: OmniRoute (code preserved - never called by generate()).
-// To re-enable, add an omniroute attempt to the list in generate().
+// Active OmniRoute call — uses env.omniroute.baseUrl + Bearer token.
 export async function callOmniRoute(model, prompt, options = {}) {
-  return failed('omniroute', 'OmniRoute is disabled - Vertex Gemini is the primary provider');
+  const { systemPrompt, jsonMode, timeout = DEFAULT_TIMEOUT } = options;
+  const { baseUrl, apiKey, model: defaultModel } = env.omniroute;
+  if (!apiKey || !baseUrl) return failed('omniroute', 'OMNIROUTE_API_KEY or OMNIROUTE_BASE_URL not configured');
+
+  const modelId = model || defaultModel || 'auto';
+  const messages = buildMessages(prompt, systemPrompt);
+
+  try {
+    const response = await withTimeout(timeout, (signal) => fetch(baseUrl + '/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + apiKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: modelId,
+        messages,
+        stream: false,
+        ...(jsonMode ? { response_format: { type: 'json_object' } } : {}),
+      }),
+      signal,
+    }));
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '');
+      return failed('omniroute', 'OmniRoute error: ' + response.status + ' ' + errText.slice(0, 200));
+    }
+
+    const data = await response.json();
+    const reply = data && data.choices && data.choices[0] && data.choices[0].message
+      ? data.choices[0].message.content
+      : '';
+    return { reply, provider: 'omniroute', model: data.model || modelId, error: null };
+  } catch (error) {
+    if (error.name === 'AbortError') return failed('omniroute', 'OmniRoute request timed out');
+    return failed('omniroute', 'OmniRoute request failed: ' + (error.message || String(error)));
+  }
 }
 
-// Unified routing: Vertex -> OpenRouter -> Agnes -> error
+function buildMessages(prompt, systemPrompt) {
+  return [
+    ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
+    { role: 'user', content: String(prompt).trim() },
+  ];
+}
+
+// Unified routing: OmniRoute (primary) -> Vertex Gemini -> OpenRouter -> Agnes -> error
 export async function generate(model, prompt, options = {}) {
-  const attempts = [{ name: 'vertex-gemini', fn: () => callVertexGemini(model, prompt, options) }];
-  if (isOpenRouterConfigured()) attempts.push({ name: 'openrouter', fn: () => callOpenRouter(openrouterModel(), prompt, options) });
-  if (isAgnesConfigured()) attempts.push({ name: 'agnes', fn: () => callAgnes(agnesModel(), prompt, options) });
+  const attempts = [];
+
+  // PRIMARY: OmniRoute (when configured)
+  if (isOmniRouteConfigured()) {
+    attempts.push({ name: 'omniroute', fn: () => callOmniRoute(model, prompt, options) });
+  }
+
+  // FALLBACK: Vertex Gemini (when configured)
+  if (isVertexConfigured()) {
+    attempts.push({ name: 'vertex-gemini', fn: () => callVertexGemini(model, prompt, options) });
+  }
+
+  // FALLBACK: OpenRouter (when configured)
+  if (isOpenRouterConfigured()) {
+    attempts.push({ name: 'openrouter', fn: () => callOpenRouter(openrouterModel(), prompt, options) });
+  }
+
+  // FALLBACK: Agnes (when configured)
+  if (isAgnesConfigured()) {
+    attempts.push({ name: 'agnes', fn: () => callAgnes(agnesModel(), prompt, options) });
+  }
+
+  // If nothing is configured, try Vertex Gemini as last resort (it may have partial config)
+  if (attempts.length === 0 && isVertexConfigured()) {
+    attempts.push({ name: 'vertex-gemini', fn: () => callVertexGemini(model, prompt, options) });
+  }
 
   let lastError = null;
   for (const attempt of attempts) {
@@ -205,7 +270,9 @@ export async function generate(model, prompt, options = {}) {
 
 // Diagnostics
 export function providerOrder() {
-  const order = ['vertex-gemini'];
+  const order = [];
+  if (isOmniRouteConfigured()) order.push('omniroute');
+  if (isVertexConfigured()) order.push('vertex-gemini');
   if (isOpenRouterConfigured()) order.push('openrouter');
   if (isAgnesConfigured()) order.push('agnes');
   return order;
@@ -216,6 +283,7 @@ export function fallbackChain(mode) {
 }
 
 export function resolveModel(provider, mode) {
+  if (provider === 'omniroute') return env.omniroute.model || 'auto';
   if (provider === 'vertex-gemini' || !provider) return resolvePrimaryModel(mode);
   if (provider === 'openrouter') return openrouterModel();
   if (provider === 'agnes') return agnesModel();
@@ -224,21 +292,27 @@ export function resolveModel(provider, mode) {
 
 export function describeRouting() {
   return {
-    primary: 'vertex-gemini',
+    primary: isOmniRouteConfigured() ? 'omniroute' : (isVertexConfigured() ? 'vertex-gemini' : null),
+    omniroute: isOmniRouteConfigured(),
+    omnirouteUrl: env.omniroute.baseUrl || null,
+    omnirouteModel: env.omniroute.model || 'auto',
+    vertex: isVertexConfigured(),
     vertexModel: resolvePrimaryModel(),
     vertexProjectId: env.vertex.projectId || null,
     vertexLocation: env.vertex.location,
     fallbacks: providerOrder().slice(1),
-    omniroute: false,
   };
 }
 
 export function logRouting() {
   const info = describeRouting();
   logger.info('AI routing configured', info);
-  console.log('[aiRouter] PRIMARY  -> vertex-gemini (' + info.vertexModel + ')');
+  if (info.primary === 'omniroute') {
+    console.log('[aiRouter] PRIMARY  -> omniroute (' + info.omnirouteModel + ') at ' + info.omnirouteUrl);
+  } else {
+    console.log('[aiRouter] PRIMARY  -> vertex-gemini (' + info.vertexModel + ')');
+  }
   console.log('[aiRouter] FALLBACK -> ' + (info.fallbacks.length ? info.fallbacks.join(' -> ') : 'none configured'));
-  console.log('[aiRouter] OmniRoute -> DISABLED');
   return info;
 }
 

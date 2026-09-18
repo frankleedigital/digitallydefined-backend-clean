@@ -44,19 +44,19 @@ export const DEFAULT_CHAT_SYSTEM_PROMPT =
 export const MODEL_MODES = {
   freeMode: {
     name: 'Free',
-    description: 'OmniRoute free models - basic capability',
-    providers: ['vertex-gemini'],
-    models: ['dd-combo'],
+    description: 'OmniRoute gateway - routes to available models',
+    providers: ['omniroute'],
+    models: ['auto'],
   },
   proMode: {
     name: 'Pro',
-    description: 'OmniRoute paid models - enhanced capability',
-    providers: ['vertex-gemini'],
-    models: ['dd-pro', 'dd-premium'],
+    description: 'OmniRoute gateway with enhanced models',
+    providers: ['omniroute'],
+    models: ['auto'],
   },
   ultraMode: {
     name: 'Ultra',
-    description: 'Gemini API via Google Cloud credits - highest quality',
+    description: 'Vertex AI Gemini via Google Cloud credits - highest quality',
     providers: ['vertex-gemini'],
     models: ['gemini-2.0-flash', 'gemini-2.0-pro'],
   },

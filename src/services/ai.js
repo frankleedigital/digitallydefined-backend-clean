@@ -8,8 +8,8 @@ import { ExternalError, ValidationError } from '../utils/errorHandler.js';
 import { aiRouter } from './aiRouter.js';
 
 const AI_CONFIG = {
-  // DISABLED: OmniRoute is off the critical path. enabled is hard-coded false.
-  omniroute: { enabled: false, baseUrl: env.omniroute.baseUrl, apiKey: env.omniroute.apiKey, defaultModel: env.omniroute.model },
+  // OmniRoute is the primary provider (when configured)
+  omniroute: { enabled: !!env.omniroute.apiKey && !!env.omniroute.baseUrl, baseUrl: env.omniroute.baseUrl, apiKey: env.omniroute.apiKey, defaultModel: env.omniroute.model || 'auto' },
   gemini: { enabled: !!env.gemini.apiKey, baseUrl: env.gemini.baseUrl, apiKey: env.gemini.apiKey, defaultModel: env.vertex.model || env.gemini.model },
   cheaperInference: { enabled: !!env.cheaperInference.apiKey && !!env.cheaperInference.baseUrl, baseUrl: env.cheaperInference.baseUrl, apiKey: env.cheaperInference.apiKey, defaultModel: env.cheaperInference.model || 'auto' },
 };
