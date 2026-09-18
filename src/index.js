@@ -84,6 +84,12 @@ app.get('/api/test-env', (req, res) => {
 });
 
 // Error handling
+app.use((req, res, next) => {
+  // Global catch-all: ensure every response (including 404s) carries CORS headers
+  // so the browser never sees a cross-origin rejection on error pages.
+  setCORSHeaders(res, req.headers && req.headers.origin);
+  next();
+});
 app.use(errorHandler);
 
 // Start server (skipped on Vercel - serverless handles it)
