@@ -1,6 +1,5 @@
 // src/services/ai.js - Unified AI Service
-// PRIMARY: Vertex AI Gemini (via aiRouter.generate) | FALLBACK: OpenRouter, Agnes
-// DISABLED: OmniRoute (legacy code kept below - never called)
+// PRIMARY: OmniRoute (via aiRouter.generate) | FALLBACK: Vertex AI Gemini, OpenRouter, Agnes
 import env from '../config/env.js';
 import constants from '../config/constants.js';
 import logger from '../utils/logger.js';

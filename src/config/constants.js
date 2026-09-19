@@ -70,9 +70,8 @@ export const SUPPORTED_INTEGRATIONS = {
 };
 
 export const AI_PROVIDER_ORDER = {
-  primary: 'vertex-gemini',
-  fallbacks: ['openrouter', 'agnes'],
-  disabled: ['omniroute'],
+  primary: 'omniroute',
+  fallbacks: ['vertex-gemini', 'openrouter', 'agnes'],
 };
 
 export default {

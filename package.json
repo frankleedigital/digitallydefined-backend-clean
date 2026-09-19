@@ -6,6 +6,8 @@
     "node": "24.x"
   },
   "dependencies": {
+    "dotenv": "^16.3.1",
+    "express": "^4.22.2",
     "zod": "^3.23.8"
   }
 }
