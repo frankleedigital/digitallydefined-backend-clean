@@ -10,6 +10,8 @@ import { logRouting } from './services/aiRouter.js';
 // Import route handlers
 import { nicheRoute, roadmapRoute, scorecardRoute, productRoute, socialRoute, trendsRoute, chatRoute, dashboardRoute } from './routes/index.js';
 import { handleDispatch } from './routes/dispatch.js';
+import { checkDashboardApiKey } from './middleware/auth.js';
+import * as websiteEditor from './services/websiteEditor.js';
 
 const app = express();
 const PORT = env.port;
@@ -56,6 +58,37 @@ app.post('/api/product', productRoute.handleProduct);
 app.post('/api/social', socialRoute.handleSocial);
 app.post('/api/trends', trendsRoute.handleTrends);
 app.post('/api/chat', chatRoute.handleChat);
+app.post('/api/website/scan', (req, res) => {
+  if (!checkDashboardApiKey(req)) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const files = websiteEditor.scanWebsite();
+    res.status(200).json({ ok: true, files });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+app.post('/api/website/edit', (req, res) => {
+  if (!checkDashboardApiKey(req)) return res.status(401).json({ error: 'Unauthorized' });
+  const { file, content } = req.body || {};
+  if (!file || content === undefined) return res.status(400).json({ ok: false, error: 'file and content required' });
+  try {
+    const result = websiteEditor.writeFile(file, content);
+    res.status(200).json(result);
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+app.post('/api/website/read', (req, res) => {
+  if (!checkDashboardApiKey(req)) return res.status(401).json({ error: 'Unauthorized' });
+  const { file } = req.body || {};
+  if (!file) return res.status(400).json({ ok: false, error: 'file required' });
+  try {
+    const content = websiteEditor.readFile(file);
+    res.status(200).json({ ok: true, file, content });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
 app.post('/api/dashboard', dashboardRoute.handleDashboard);
 app.post('/api/dispatch', handleDispatch);
 app.post('/api/*', handleDispatch);

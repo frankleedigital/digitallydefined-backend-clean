@@ -7,11 +7,20 @@ import { ValidationError } from '../utils/errorHandler.js';
 import { checkDashboardApiKey } from '../middleware/auth.js';
 import constants from '../config/constants.js';
 import logger from '../utils/logger.js';
+import * as websiteEditor from '../services/websiteEditor.js';
 
-/**
- * Handle chat request.
- * POST /api/chat
- */
+function extractEditBlocks(text) {
+  const blocks = [];
+  const regex = /\[EDIT FILE:\s*([^\]]+)\s*\]\s*\n([\s\S]*?)\[\/EDIT\]/g;
+  let m;
+  while ((m = regex.exec(text)) !== null) blocks.push({ file: m[1].trim(), newContent: m[2] });
+  return blocks;
+}
+
+function stripEditBlocks(text) {
+  return text.replace(/\[EDIT FILE:[\s\S]*?\[\/EDIT\]/g, '').trim();
+}
+
 export async function handleChat(req, res) {
   try {
     if (!checkDashboardApiKey(req)) {
@@ -39,23 +48,41 @@ export async function handleChat(req, res) {
       prompt = 'Conversation so far:\n' + transcript + '\n\nUSER: ' + params.message;
     }
 
-    const result = await aiRouter.generate(null, prompt, {
-      mode: params.mode,
-      systemPrompt: params.systemPrompt || constants.DEFAULT_CHAT_SYSTEM_PROMPT,
-      jsonMode: false,
-    });
-
-    if (result.error) {
-      throw result.error;
+    let websiteContext = '';
+    if (params.includeWebsiteContext) {
+      try {
+        const files = websiteEditor.scanWebsite();
+        websiteContext = '\n\nAvailable website source files (you may edit these):\n' + files.join('\n');
+      } catch (err) {
+        logger.warn('Website scan failed', { error: err.message });
+      }
     }
 
-    return res.status(200).json({
-      reply: typeof result.reply === 'string' ? result.reply : JSON.stringify(result.reply),
-      provider: result.provider || 'unknown',
-      model: result.model || 'unknown',
-      mode: params.mode,
-      timestamp: Date.now(),
-    });
+    const systemPrompt = (params.systemPrompt || constants.DEFAULT_CHAT_SYSTEM_PROMPT) + websiteContext;
+
+    const result = await aiRouter.generate(null, prompt, { mode: params.mode, systemPrompt, jsonMode: false });
+    if (result.error) throw result.error;
+
+    let reply = typeof result.reply === 'string' ? result.reply : JSON.stringify(result.reply);
+    let appliedEdit = null;
+    const editBlocks = extractEditBlocks(reply);
+    if (editBlocks.length > 0) {
+      const edits = [];
+      for (const block of editBlocks) {
+        try {
+          const editResult = websiteEditor.writeFile(block.file, block.newContent);
+          edits.push({ ok: true, file: editResult.file, committed: editResult.committed, pushed: editResult.pushed, commitHash: editResult.commitHash });
+          reply = reply.replace('[EDIT FILE: ' + block.file + ']\n' + block.newContent + '[/EDIT]', '(Edited ' + block.file + (editResult.committed ? ' — committed and pushed' : ' — saved locally') + ')');
+        } catch (err) {
+          edits.push({ ok: false, file: block.file, error: err.message });
+          reply = reply.replace('[EDIT FILE: ' + block.file + '][\\s\\S]*?[\\/EDIT]', '(Edit failed for ' + block.file + ': ' + err.message + ')');
+        }
+      }
+      appliedEdit = edits.length === 1 ? edits[0] : edits;
+      reply = stripEditBlocks(reply);
+    }
+
+    return res.status(200).json({ reply: reply.trim(), provider: result.provider || 'unknown', model: result.model || 'unknown', mode: params.mode, appliedEdit, timestamp: Date.now() });
   } catch (error) {
     logger.error('Chat request failed', error);
     console.error('[routes/chat] error:', error.message);
