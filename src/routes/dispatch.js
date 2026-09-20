@@ -71,7 +71,9 @@ export async function handleDispatch(req, res) {
     // Antigravity (Notion Architect)
   if (action.startsWith('antigravity.')) {
     try {
-      const am = await import('./antigravity.js');
+      const am = await import('../services/antigravity.js');
+      const innerAction = action.replace('antigravity.', '');
+      req.body = { ...body, action: innerAction };
       const handler = am.default?.handleAntigravity || am.handleAntigravity;
       return await handler(req, res);
     } catch (err) {

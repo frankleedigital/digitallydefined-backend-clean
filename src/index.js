@@ -9,6 +9,7 @@ import { logRouting } from './services/aiRouter.js';
 
 // Import route handlers
 import { nicheRoute, roadmapRoute, scorecardRoute, productRoute, socialRoute, trendsRoute, chatRoute, dashboardRoute } from './routes/index.js';
+import { handleDispatch } from './routes/dispatch.js';
 
 const app = express();
 const PORT = env.port;
@@ -56,6 +57,8 @@ app.post('/api/social', socialRoute.handleSocial);
 app.post('/api/trends', trendsRoute.handleTrends);
 app.post('/api/chat', chatRoute.handleChat);
 app.post('/api/dashboard', dashboardRoute.handleDashboard);
+app.post('/api/dispatch', handleDispatch);
+app.post('/api/*', handleDispatch);
 
 // Test endpoint (no auth required)
 app.get('/api/test-env', (req, res) => {
