@@ -111,6 +111,18 @@ export async function handleDispatch(req, res) {
     }
   }
 
+  // AI Business Partner — structured JSON business intelligence
+  if (action === 'business.partner' || action === 'agent.business-partner') {
+    try {
+      const bpMod = await import('./businessPartner.js');
+      const handler = bpMod.default?.handleBusinessPartner || bpMod.handleBusinessPartner;
+      return await handler(req, res);
+    } catch (err) {
+      logger.error('Business partner dispatch failed', { error: err.message });
+      return res.status(500).json({ error: err.message || 'Business partner failed' });
+    }
+  }
+
   // Analytics / events / optimization / report
   if (['analytics', 'events', 'optimization', 'report'].includes(action)) {
     return res.status(200).json({ ok: true, action, message: 'Received' });

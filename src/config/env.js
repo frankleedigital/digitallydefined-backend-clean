@@ -211,7 +211,7 @@ const env = {
     sheetId: (process.env.GOOGLE_SHEETS_ID || '').trim(),
     googleClientId: (process.env.GOOGLE_CLIENT_ID || '').trim(),
     googleClientSecret: (process.env.GOOGLE_CLIENT_SECRET || '').trim(),
-    googleRefreshToken: (process.env.GOOGLE_REFRESH_TOKEN || '').trim(),
+    refreshToken: (process.env.GOOGLE_REFRESH_TOKEN || '').trim(),
   },
 
   // Third-Party Services
@@ -232,6 +232,12 @@ const env = {
     apiKey: (process.env.ANTIGRAVITY_API_KEY || '').trim(),
     notionToken: (process.env.ANTIGRAVITY_NOTION_TOKEN || process.env.NOTION_API_KEY || '').trim(),
     workspaceId: (process.env.ANTIGRAVITY_WORKSPACE_ID || '').trim(),
+  },
+
+  // Google Analytics 4 (via Data API or Sheets webhook fallback)
+  ga4: {
+    measurementId: (process.env.GA4_MEASUREMENT_ID || '').trim(),
+    propertyId: (process.env.GA4_PROPERTY_ID || '').trim(),
   },
 
   // Hermes MCP
@@ -526,6 +532,7 @@ export function getIntegrationReport() {
     telegram: isTelegramConfigured(),
     antigravity: isAntigravityConfigured(),
     hermes: isHermesConfigured(),
+    ga4: !!(env.ga4.measurementId || env.ga4.propertyId),
     security: isSecurityConfigured(),
     agentops: !!env.agentops.apiKey,
     puter: env.puter.enabled,

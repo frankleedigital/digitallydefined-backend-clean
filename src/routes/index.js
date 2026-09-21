@@ -9,3 +9,4 @@ export { default as trendsRoute } from './trends.js';
 export { default as chatRoute } from './chat.js';
 export { default as dashboardRoute } from './dashboard.js';
 export { default as dispatchRoute } from './dispatch.js';
+export { default as businessPartnerRoute } from './businessPartner.js';

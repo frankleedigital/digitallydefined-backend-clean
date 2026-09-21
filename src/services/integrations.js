@@ -53,7 +53,28 @@ export function getBrevoStatus() { return { configured: isBrevoConfigured(), api
 
 export async function fetchBrevoStats(timeoutMs = constants.FETCH_TIMEOUT_MS) {
   if (!env.brevo.apiKey) return { error: 'Brevo not configured', totalSubscribers: 0, emailOpenRate: 0, emailClickRate: 0, topCampaigns: [] };
-  return { totalSubscribers: 3120, emailOpenRate: 0.282, emailClickRate: 0.114, topCampaigns: [{ name: 'Authority Launch Sequence', openRate: 0.312, clickRate: 0.128 }], error: null };
+  // Call real Brevo API for accurate stats
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch('https://api.brevo.com/v3/partners/statistics', {
+      headers: { 'api-key': env.brevo.apiKey },
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error('Brevo API error: ' + response.status);
+    const data = await response.json();
+    return {
+      totalSubscribers: data.totalSubscribers || 0,
+      emailOpenRate: data.openRate || null,
+      emailClickRate: data.clickRate || null,
+      topCampaigns: data.topCampaigns || [],
+      error: null,
+    };
+  } catch (error) {
+    if (error.name === 'AbortError') return { error: 'Brevo request timed out', totalSubscribers: 0, emailOpenRate: 0, emailClickRate: 0, topCampaigns: [] };
+    logger.error('Brevo fetch error', error);
+    return { error: error.message || 'Brevo fetch failed', totalSubscribers: 0, emailOpenRate: 0, emailClickRate: 0, topCampaigns: [] };
+  } finally { clearTimeout(timeoutId); }
 }
 
 export function isSheetsConfigured() { return !!env.sheets.webhookUrl; }
