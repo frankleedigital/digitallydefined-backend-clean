@@ -9,6 +9,7 @@ import { logRouting } from './services/aiRouter.js';
 
 // Import route handlers
 import { nicheRoute, roadmapRoute, scorecardRoute, productRoute, socialRoute, trendsRoute, chatRoute, dashboardRoute } from './routes/index.js';
+import { handleSetModel, handleGetModels, handleGetActiveModel } from './routes/setModel.js';
 import { handleDispatch } from './routes/dispatch.js';
 import { checkDashboardApiKey } from './middleware/auth.js';
 import * as websiteEditor from './services/websiteEditor.js';
@@ -90,6 +91,12 @@ app.post('/api/website/read', (req, res) => {
   }
 });
 app.post('/api/dashboard', dashboardRoute.handleDashboard);
+
+// ---- Model switching (must be registered BEFORE the /api/* catch-all) ----
+app.post('/api/set-model', handleSetModel);
+app.get('/api/models', handleGetModels);
+app.get('/api/active-model', handleGetActiveModel);
+
 app.post('/api/dispatch', handleDispatch);
 app.post('/api/*', handleDispatch);
 
