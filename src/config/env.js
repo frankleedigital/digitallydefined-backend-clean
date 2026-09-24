@@ -77,7 +77,7 @@ const env = {
 
   // Supabase
   supabase: {
-    url: (process.env.SUPABASE_URL || 'https://kiwzbqjbymdcxmkacvsc.supabase.co').trim(),
+    url: (process.env.SUPABASE_URL || 'https://dijjlppdljpcgyoakdnq.supabase.co').trim(),
     anonKey: (process.env.SUPABASE_ANON_KEY || '').trim(),
     serviceRoleKey: (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim(),
   },
@@ -143,7 +143,15 @@ const env = {
       leads: (process.env.NOTION_LEADS_DB_ID || '').trim(),
       quizResults: (process.env.NOTION_QUIZ_RESULTS_DB_ID || '').trim(),
       contactMessages: (process.env.NOTION_CONTACT_MESSAGES_DB_ID || '').trim(),
+      money: (process.env.NOTION_MONEY_DB_ID || '').trim(),
+      monthly: (process.env.NOTION_MONTHLY_DB_ID || '').trim(),
+      reputation: (process.env.NOTION_REPUTATION_DB_ID || '').trim(),
+      templates: (process.env.NOTION_TEMPLATES_DB_ID || '').trim(),
+      automationEvents: (process.env.AUTOMATION_EVENTSDB_ID || '').trim(),
+      engagementLog: (process.env.NOTION_DATABASE_ENGAGEMENT_LOG || '').trim(),
+      aiDrafts: (process.env.NOTION_DATABASE_AI_DRAFTS || '').trim(),
     },
+    parentPageId: (process.env.NOTION_PARENT_PAGE_ID || '').trim(),
     webhookSecret: (process.env.NOTION_WEBHOOK_SECRET || '').trim(),
     syncWindowMinutes: parseInt(process.env.NOTION_SYNC_WINDOW_MIN || '420', 10),
   },
@@ -240,12 +248,7 @@ const env = {
     propertyId: (process.env.GA4_PROPERTY_ID || '').trim(),
   },
 
-  // Hermes MCP
-  hermes: {
-    gatewayUrl: (process.env.HERMES_GATEWAY_URL || '').trim(),
-    backendUrl: (process.env.BACKEND_HERMES_URL || 'http://localhost:8000').trim(),
-    mcpPort: parseInt(process.env.HERMES_MCP_PORT || '8000', 10),
-  },
+  // Hermes (legacy — now handled via the chat route, not MCP)
 
   // OmniRoute internal / local gateway extras (not frontend exposed)
   linode: {
@@ -376,7 +379,7 @@ export function isAntigravityConfigured() {
 }
 
 export function isHermesConfigured() {
-  return !!env.hermes.gatewayUrl;
+  return false;
 }
 
 export function isSecurityConfigured() {
@@ -420,6 +423,13 @@ export const OPTIONAL_VARS = [
   { key: 'NOTION_LEADS_DB_ID', value: () => env.notion.databases.leads, purpose: 'Notion leads database' },
   { key: 'NOTION_QUIZ_RESULTS_DB_ID', value: () => env.notion.databases.quizResults, purpose: 'Notion quiz results' },
   { key: 'NOTION_CONTACT_MESSAGES_DB_ID', value: () => env.notion.databases.contactMessages, purpose: 'Notion contact messages' },
+  { key: 'NOTION_MONEY_DB_ID', value: () => env.notion.databases.money, purpose: 'Notion money snapshot database' },
+  { key: 'NOTION_MONTHLY_DB_ID', value: () => env.notion.databases.monthly, purpose: 'Notion monthly review database' },
+  { key: 'NOTION_REPUTATION_DB_ID', value: () => env.notion.databases.reputation, purpose: 'Notion reputation signals database' },
+  { key: 'NOTION_TEMPLATES_DB_ID', value: () => env.notion.databases.templates, purpose: 'Notion templates library database' },
+  { key: 'AUTOMATION_EVENTSDB_ID', value: () => env.notion.databases.automationEvents, purpose: 'Notion automation events database' },
+  { key: 'NOTION_DATABASE_ENGAGEMENT_LOG', value: () => env.notion.databases.engagementLog, purpose: 'Notion engagement log database' },
+  { key: 'NOTION_DATABASE_AI_DRAFTS', value: () => env.notion.databases.aiDrafts, purpose: 'Notion AI drafts database' },
   { key: 'FACEBOOK_ACCESS_TOKEN', value: () => env.facebook.accessToken, purpose: 'Facebook Graph API token' },
   { key: 'FACEBOOK_GROUP_ID', value: () => env.facebook.groupId, purpose: 'Facebook community group' },
   { key: 'FACEBOOK_PAGE_ID', value: () => env.facebook.pageId, purpose: 'Facebook page ID' },
@@ -435,7 +445,6 @@ export const OPTIONAL_VARS = [
   { key: 'TELEGRAM_BOT_TOKEN', value: () => env.telegram.botToken, purpose: 'Telegram bot notifications' },
   { key: 'ANTIGRAVITY_API_KEY', value: () => env.antigravity.apiKey, purpose: 'Antigravity MCP (Notion Architect)' },
   { key: 'ANTIGRAVITY_WORKSPACE_ID', value: () => env.antigravity.workspaceId, purpose: 'Antigravity Notion workspace ID' },
-  { key: 'HERMES_GATEWAY_URL', value: () => env.hermes.gatewayUrl, purpose: 'Hermes MCP gateway URL' },
   { key: 'JWT_SECRET', value: () => env.security.jwtSecret, purpose: 'JWT signing/verification' },
   { key: 'API_KEY_SECRET', value: () => env.security.apiKeySecret, purpose: 'API-key management secret' },
   { key: 'STORAGE_ENCRYPTION_KEY', value: () => env.security.storageEncryptionKey, purpose: 'Credential encryption at rest' },

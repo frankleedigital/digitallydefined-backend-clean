@@ -4,6 +4,7 @@ import { fetchFacebookGroup, fetchBrevoStats, fetchSheetsData } from '../service
 import { aiRouter } from '../services/aiRouter.js';
 import { getNotionStatus } from '../services/notion.js';
 import { formatUSD, safeNumber, safeString, stripMarkdown } from '../utils/formatters.js';
+import { respond, respondError } from '../utils/respond.js';
 import logger from '../utils/logger.js';
 
 export async function handleDashboard(req, res) {
@@ -54,22 +55,24 @@ export async function handleDashboard(req, res) {
       ? { pagesCreated: 47, pagesUpdated: 128, databases: ['Ideas', 'Roadmaps'], status: getNotionStatus() }
       : { pagesCreated: 0, pagesUpdated: 0, databases: [], status: getNotionStatus() };
 
-    return res.status(200).json({
+    return respond(res, {
       status: 'ok', community, assets, email, topPosts, campaigns, notion: notionSnapshot,
       revenue, leads, topAsset, assetValue, siteHealth, sentiment, communityGrowth, emailGrowth,
       conversionRate, churnRisk, aiBrief, alerts,
       sourceHealth: {
-        notion: notionSnapshot.status.configured ? 'connected' : 'not_configured',
+        notion: notionSnapshot.status.configuration?.configured === true ? 'connected' : (notionSnapshot.status.configured ? 'connected' : 'not_configured'),
         google_sheets: sheetsResult.error ? 'error' : (sheetsResult.data ? 'connected' : 'not_configured'),
         meta_api: fbData.error ? 'error' : (fbData.member_count ? 'connected' : 'not_configured'),
       },
       debug,
       timestamp: Date.now(),
-    });
+    }, { provider: null, model: null, mergeData: true });
   } catch (error) {
     logger.error('Dashboard request failed', error);
     console.error('[routes/dashboard] error:', error.message);
-    return res.status(500).json({ error: 'Dashboard fetch failed', details: process.env.NODE_ENV !== 'production' ? error.message : 'An internal error occurred.' });
+    return respondError(res, error, {
+      message: 'Dashboard fetch failed',
+    });
   }
 }
 

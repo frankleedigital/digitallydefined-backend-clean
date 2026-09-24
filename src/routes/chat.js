@@ -5,6 +5,7 @@ import { chatRequestSchema } from '../schemas/chat.js';
 import { aiRouter } from '../services/aiRouter.js';
 import { ValidationError } from '../utils/errorHandler.js';
 import { checkDashboardApiKey } from '../middleware/auth.js';
+import { respond, respondError } from '../utils/respond.js';
 import constants from '../config/constants.js';
 import logger from '../utils/logger.js';
 import * as websiteEditor from '../services/websiteEditor.js';
@@ -82,18 +83,24 @@ export async function handleChat(req, res) {
       reply = stripEditBlocks(reply);
     }
 
-    return res.status(200).json({ reply: reply.trim(), provider: result.provider || 'unknown', model: result.model || 'unknown', mode: params.mode, appliedEdit, timestamp: Date.now() });
+    return respond(res, {
+      reply: reply.trim(),
+      provider: result.provider || 'unknown',
+      model: result.model || 'unknown',
+      mode: params.mode,
+      appliedEdit,
+      timestamp: Date.now(),
+    }, { provider: result.provider || 'unknown', model: result.model || 'unknown', mergeData: true });
   } catch (error) {
     logger.error('Chat request failed', error);
     console.error('[routes/chat] error:', error.message);
 
     if (error instanceof ValidationError) {
-      return res.status(400).json({ error: error.message });
+      return respondError(res, error, { status: 400 });
     }
 
-    return res.status(500).json({
-      error: 'Chat request failed',
-      details: process.env.NODE_ENV !== 'production' ? error.message : undefined,
+    return respondError(res, error, {
+      message: 'Chat request failed',
     });
   }
 }

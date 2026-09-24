@@ -11,6 +11,7 @@ import { logRouting } from './services/aiRouter.js';
 import { nicheRoute, roadmapRoute, scorecardRoute, productRoute, socialRoute, trendsRoute, chatRoute, dashboardRoute } from './routes/index.js';
 import { handleSetModel, handleGetModels, handleGetActiveModel } from './routes/setModel.js';
 import { handleDispatch } from './routes/dispatch.js';
+import { handleOnboarding } from './routes/onboardingDispatch.js';
 import { checkDashboardApiKey } from './middleware/auth.js';
 import * as websiteEditor from './services/websiteEditor.js';
 
@@ -97,6 +98,7 @@ app.post('/api/set-model', handleSetModel);
 app.get('/api/models', handleGetModels);
 app.get('/api/active-model', handleGetActiveModel);
 
+app.post('/api/onboarding', handleOnboarding);
 app.post('/api/dispatch', handleDispatch);
 app.post('/api/*', handleDispatch);
 
@@ -118,7 +120,6 @@ app.get('/api/test-env', (req, res) => {
     },
     notes: {
       antigravity: 'MCP Notion Architect - requires ANTIGRAVITY_API_KEY',
-      hermes: 'Hermes MCP Gateway - requires HERMES_GATEWAY_URL',
       supabase: 'Database - requires SUPABASE_URL and SUPABASE_ANON_KEY',
       vertex: 'Vertex AI Gemini fallback - requires VERTEX_PROJECT_ID (optional)',
       omniroute: 'PRIMARY AI provider - OmniRoute via Cloudflare tunnel (' + env.omniroute.model + ')',
@@ -147,7 +148,6 @@ if (isNodeEnvironment) {
     });
     console.log('Server running on http://localhost:' + PORT);
     console.log('Supabase connected: ' + (env.supabase.url ? 'yes' : 'no'));
-    console.log('Hermes agent router loaded: ' + (env.hermes.gatewayUrl ? 'yes' : 'no'));
     console.log('Dashboard API ready: ' + (env.dashboardApiKey ? 'yes' : 'no'));
   });
 }

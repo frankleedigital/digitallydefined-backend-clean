@@ -9,3 +9,8 @@ export { socialRequestSchema, socialResponseSchema, socialPostSchema, SOCIAL_PLA
 export { trendsRequestSchema, trendsResponseSchema } from './trends.js';
 export { chatRequestSchema, chatResponseSchema, chatMessageSchema } from './chat.js';
 export { dashboardRequestSchema, dashboardResponseSchema, dashboardContextSchema } from './dashboard.js';
+export { competitionRequestSchema, competitionResponseSchema } from './competition.js';
+export { opportunitiesRequestSchema, opportunitiesResponseSchema } from './opportunities.js';
+export { audienceRequestSchema, audienceResponseSchema } from './audience.js';
+export { quizRequestSchema, quizResponseSchema } from './quiz.js';
+export { onboardingRequestSchema, onboardingStateSchema, onboardingStepSchema } from './onboarding.js';

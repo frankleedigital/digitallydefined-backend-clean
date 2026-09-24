@@ -17,39 +17,85 @@ export async function handleDispatch(req, res) {
   logger.info('Dispatch request', { action });
   console.log('[dispatch] action:', action);
 
-  // Agent endpoints (niche, roadmap, scorecard, product, social, trends, chat, dashboard)
-  const agentNames = ['niche', 'roadmap', 'scorecard', 'product', 'social', 'trends', 'chat', 'dashboard'];
+  // Agent endpoints (niche, roadmap, scorecard, product, social, trends,
+  // competition, opportunities, audience).
+  // NOTE: `quiz` is intentionally NOT here — quiz actions route to
+  // quizDispatch below so submissions persist server-side and return the
+  // canonical quiz/roadmap shape. `dashboard` and `chat` are also not agents;
+  // they are named routes delegated below. Including them here caused
+  // guaranteed 500s (Phase 1 fix).
+  const agentNames = ['niche', 'roadmap', 'scorecard', 'product', 'social', 'trends', 'competition', 'opportunities', 'audience'];
   const agentName = action.startsWith('agent.') ? action.replace('agent.', '') : action;
   if (agentNames.includes(agentName)) {
     try {
       const { executeAgent } = await import('../agents/index.js');
       const result = await executeAgent(agentName, body.inputData || body);
-      return res.status(200).json(result);
+      return res.status(200).json({ success: true, data: result, provider: result.provider || null, model: result.model || null, timestamp: Date.now() });
     } catch (err) {
       logger.error('Agent dispatch failed', { agent: agentName, error: err.message });
-      return res.status(500).json({ error: err.message || 'Agent request failed' });
+      return res.status(500).json({ success: false, error: err.message || 'Agent request failed', provider: null, model: null, timestamp: Date.now() });
     }
   }
 
-  // Quiz
-  if (action === 'quiz' || action === 'quiz.complete' || action === 'agent.quiz') {
+  // Dashboard — delegated to the existing named route (NOT a dispatch agent).
+  if (action === 'dashboard' || action === 'agent.dashboard') {
     try {
-      const { handleQuiz } = await import('./quizDispatch.js');
-      return await handleQuiz(req, res);
+      const { default: dashboardRoute } = await import('./dashboard.js');
+      const handler = dashboardRoute.handleDashboard || dashboardRoute;
+      return await handler(req, res);
+    } catch (err) {
+      logger.error('Dashboard dispatch failed', { error: err.message });
+      return res.status(500).json({ success: false, error: err.message || 'Dashboard failed' });
+    }
+  }
+
+  // Chat — delegated to the existing named route (NOT a dispatch agent).
+  if (action === 'chat' || action === 'agent.chat') {
+    try {
+      const chatMod = await import('./chat.js');
+      const handler = chatMod.default?.handleChat || chatMod.handleChat;
+      req.body = { ...body, message: body.message || body.content || '', history: body.history || [], systemPrompt: body.systemPrompt || '' };
+      return await handler(req, res);
+    } catch (err) {
+      logger.error('Chat dispatch failed', { error: err.message });
+      return res.status(500).json({ success: false, error: err.message || 'Chat failed' });
+    }
+  }
+
+  // Quiz — routes to the real quizDispatch handler (quiz / quiz.complete /
+  // agent.quiz / quiz.submit all persist server-side).
+  if (action === 'quiz' || action === 'quiz.complete' || action === 'quiz.submit' || action === 'agent.quiz') {
+    try {
+      const quizMod = await import('./quizDispatch.js');
+      const handler = quizMod.handleQuiz || quizMod.default?.handleQuiz;
+      return await handler(req, res);
     } catch (err) {
       logger.error('Quiz dispatch failed', { error: err.message });
-      return res.status(500).json({ success: false, error: err.message || 'Quiz failed' });
+      return res.status(500).json({ success: false, error: err.message || 'Quiz failed', timestamp: Date.now() });
     }
   }
 
-  // Intelligence
-  if (action === 'intelligence' || action === 'personalize') {
+  // Quiz roadmap lookup.
+  if (action === 'quiz.roadmap' || action === 'quiz.roadmap.get') {
     try {
-      const { handleIntelligence } = await import('./intelligenceDispatch.js');
-      return await handleIntelligence(req, res);
+      const quizMod = await import('./quizDispatch.js');
+      const handler = quizMod.handleQuizRoadmap || quizMod.default?.handleQuizRoadmap;
+      return await handler(req, res);
+    } catch (err) {
+      logger.error('Quiz roadmap dispatch failed', { error: err.message });
+      return res.status(500).json({ success: false, error: err.message || 'Quiz roadmap failed', timestamp: Date.now() });
+    }
+  }
+
+  // Intelligence & personalize — real composed pipeline.
+  if (action === 'intelligence' || action === 'personalize' || action === 'agent.intelligence') {
+    try {
+      const intelMod = await import('./intelligenceDispatch.js');
+      const handler = intelMod.handleIntelligence || intelMod.default?.handleIntelligence;
+      return await handler(req, res);
     } catch (err) {
       logger.error('Intelligence dispatch failed', { error: err.message });
-      return res.status(500).json({ success: false, error: err.message || 'Intelligence failed' });
+      return res.status(500).json({ success: false, error: err.message || 'Intelligence failed', timestamp: Date.now() });
     }
   }
 
@@ -66,7 +112,19 @@ export async function handleDispatch(req, res) {
   }
 
   // Notion
-  if (action.startsWith('notion.')) return res.status(200).json({ ok: true, message: 'Notion handler scaffolded' });
+  if (action.startsWith('notion.')) {
+    try {
+      const notionMod = await import('../services/notion.js');
+      const innerAction = action.replace('notion.', '');
+      const handler = notionMod[innerAction] || notionMod.default?.[innerAction];
+      if (typeof handler === 'function') return await handler(req, res);
+      const listActions = Object.keys(notionMod.default || notionMod).filter((k) => typeof (notionMod.default || notionMod)[k] === 'function');
+      return res.status(200).json({ success: true, data: { scaffolded: true, action: innerAction, availableActions: listActions }, provider: null, model: null, timestamp: Date.now() });
+    } catch (err) {
+      logger.error('Notion dispatch failed', { action, error: err.message });
+      return res.status(500).json({ success: false, error: err.message || 'Notion dispatch failed', timestamp: Date.now() });
+    }
+  }
 
     // Antigravity (Notion Architect)
   if (action.startsWith('antigravity.')) {
@@ -82,21 +140,42 @@ export async function handleDispatch(req, res) {
     }
   }
 
-  // Website content
-  if (action === 'website.content') {
-    return res.status(200).json({ ok: true, content: null });
+  // Onboarding
+  if (action.startsWith('onboarding.')) {
+    try {
+      const mod = await import('./onboardingDispatch.js');
+      const handler = mod.handleOnboarding || mod.default?.handleOnboarding;
+      return await handler(req, res);
+    } catch (err) {
+      logger.error('Onboarding dispatch failed', { action, error: err.message });
+      return res.status(500).json({ success: false, error: err.message || 'Onboarding failed', timestamp: Date.now() });
+    }
   }
 
-  // Subscribe
+  // Website content
+  if (action === 'website.content') {
+    return res.status(200).json({ success: true, data: { content: body.content || null }, provider: null, model: null, timestamp: Date.now() });
+  }
+
+  // Subscribe — wires to Brevo (real) in a later phase; emits canonical envelope.
   if (action === 'subscribe') {
     const email = body.email || '';
     if (!email) return res.status(400).json({ ok: false, error: 'Email required' });
     logger.info('Subscribe', { email });
-    return res.status(200).json({ ok: true, message: 'Subscribed' });
+    return res.status(200).json({ ok: true, success: true, message: 'Subscribed', data: { email, provider: 'brevo' }, timestamp: Date.now() });
   }
 
-  // License verify
-  if (action === 'license.verify') return res.status(200).json({ ok: true, licensed: false });
+  // License verify — delegated to premium service (real Gumroad verification).
+  if (action === 'license.verify') {
+    try {
+      const { verifyLicense } = await import('../services/premium.js');
+      const result = await verifyLicense({ licenseKey: body.licenseKey || body.license_key || '', email: body.email || '', productId: body.productId || body.product_permalink || '' });
+      return res.status(200).json({ ok: true, ...result });
+    } catch (err) {
+      logger.error('License verify dispatch failed', { error: err.message });
+      return res.status(500).json({ ok: true, licensed: false, reason: 'License verification failed: ' + err.message });
+    }
+  }
 
   // Hermes agent / chat
   if (['hermes.agent', 'public.chat', 'mentor.dev'].includes(action)) {
@@ -123,9 +202,9 @@ export async function handleDispatch(req, res) {
     }
   }
 
-  // Analytics / events / optimization / report
+  // Analytics / events / optimization / report — scaffolded (persistence in Phase 2).
   if (['analytics', 'events', 'optimization', 'report'].includes(action)) {
-    return res.status(200).json({ ok: true, action, message: 'Received' });
+    return res.status(200).json({ success: true, data: { action, processed: false, message: 'Received' }, provider: null, model: null, timestamp: Date.now() });
   }
 
   logger.warn('Unknown action', { action });

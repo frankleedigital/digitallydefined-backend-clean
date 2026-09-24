@@ -7,6 +7,10 @@ import { generateScorecard } from './scorecard.js';
 import { generateProduct } from './product.js';
 import { generateSocialContent } from './social.js';
 import { identifyTrends } from './trends.js';
+import { analyzeCompetition } from './competition.js';
+import { identifyOpportunities } from './opportunities.js';
+import { analyzeAudience } from './audience.js';
+import { processQuiz } from './quiz.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -48,6 +52,30 @@ export const agentRegistry = {
     description: 'Identify trending topics and emerging opportunities',
     handler: identifyTrends,
     inputSchema: 'trendsRequestSchema',
+  },
+  competition: {
+    name: 'Competition Agent',
+    description: 'Analyze the competitive landscape for a niche',
+    handler: analyzeCompetition,
+    inputSchema: 'competitionRequestSchema',
+  },
+  opportunities: {
+    name: 'Opportunities Agent',
+    description: 'Identify market gaps and product opportunities',
+    handler: identifyOpportunities,
+    inputSchema: 'opportunitiesRequestSchema',
+  },
+  audience: {
+    name: 'Audience Agent',
+    description: 'Generate audience insights and personas for a niche',
+    handler: analyzeAudience,
+    inputSchema: 'audienceRequestSchema',
+  },
+  quiz: {
+    name: 'Quiz Agent',
+    description: 'Process quiz answers and generate a superpower profile',
+    handler: processQuiz,
+    inputSchema: 'quizRequestSchema',
   },
 };
 

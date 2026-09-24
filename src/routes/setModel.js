@@ -5,9 +5,8 @@
 // Wires the dashboard model selector to the real runtime:
 //
 //   1. Validate the model against the OmniRoute registry + live catalog.
-//   2. Push the model to the Hermes MCP runtime (hermes.setActiveModel).
-//   3. Persist the choice in Supabase `user_model_preferences`.
-//   4. Return { activeModel }.
+//   2. Persist the choice in Supabase `user_model_preferences`.
+//   3. Return { activeModel }.
 //
 // Also exposes:
 //   GET /api/models       -> registry grouped by tier (for the dropdown)
@@ -31,42 +30,9 @@ function resolveUserId(req) {
   return id || 'default';
 }
 
-/** Push the model into the Hermes runtime. Non-fatal. */
+/** Hermes MCP sync removed — Hermes MCP is deprecated. Model is persisted in Supabase only. */
 async function syncHermesRuntime(modelId) {
-  const gateway = (env.hermes?.gatewayUrl || '').trim();
-  const local = (env.hermes?.backendUrl || '').trim();
-
-  // Both are full endpoints that accept the { action, ... } contract.
-  const targets = [gateway, local].filter(Boolean).map((u) => u.replace(/\/+$/, ''));
-
-  const payload = { action: 'hermes.setActiveModel', modelId, model: modelId };
-  const headers = {
-    'Content-Type': 'application/json',
-    'x-api-key': (process.env.DASHBOARD_API_KEY || '').trim(),
-  };
-
-  for (const url of targets) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 10000);
-    try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-      });
-      if (res.ok) {
-        logger.info('Hermes runtime accepted active model', { modelId, url });
-        return { synced: true, target: url };
-      }
-      logger.warn('Hermes runtime rejected active model', { modelId, url, status: res.status });
-    } catch (err) {
-      logger.warn('Hermes runtime unreachable', { url, error: err.message });
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-  return { synced: false, target: null };
+  return { synced: false, deprecated: true };
 }
 
 /** Upsert the user's model choice. Returns the stored row (or null). */

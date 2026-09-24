@@ -5,6 +5,7 @@ import { executeAgent } from '../agents/index.js';
 import { trendsRequestSchema } from '../schemas/trends.js';
 import { ValidationError } from '../utils/errorHandler.js';
 import { checkDashboardApiKey } from '../middleware/auth.js';
+import { respond, respondError } from '../utils/respond.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -31,18 +32,17 @@ export async function handleTrends(req, res) {
 
     const result = await executeAgent('trends', params);
 
-    return res.status(200).json(result);
+    return respond(res, result, { provider: result.provider || null, model: result.model || null, mergeData: true });
   } catch (error) {
     logger.error('Trends request failed', error);
     console.error('[routes/trends] error:', error.message);
 
     if (error instanceof ValidationError) {
-      return res.status(400).json({ error: error.message });
+      return respondError(res, error, { status: 400 });
     }
 
-    return res.status(500).json({
-      error: 'Trends analysis failed',
-      details: process.env.NODE_ENV !== 'production' ? error.message : undefined,
+    return respondError(res, error, {
+      message: 'Trends analysis failed',
     });
   }
 }
