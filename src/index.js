@@ -73,6 +73,32 @@ app.post('/api/website/scan', (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// Hermes / Mentor availability (polled by the public site's Mentor widget).
+//
+// Returns 200 with an `available` boolean on every path, including failures,
+// so a degraded gateway shows the widget as "offline" instead of throwing.
+// ---------------------------------------------------------------------------
+app.get('/api/hermes/status', async (req, res) => {
+  if (!checkDashboardApiKey(req)) return res.status(401).json({ error: 'Unauthorized' });
+  res.setHeader('Content-Type', 'application/json');
+  const out = { success: true, available: false, provider: null, model: null, reason: null };
+  try {
+    const aiRouter = await import('./services/aiRouter.js');
+    if (aiRouter.isOmniRouteConfigured()) {
+      out.available = true;
+      out.provider = 'omniroute';
+      out.reason = 'gateway configured';
+      try { out.routing = aiRouter.describeRouting(); } catch { /* diagnostics best effort */ }
+    } else {
+      out.reason = 'AI gateway not configured';
+    }
+  } catch (err) {
+    out.reason = err.message || 'status check failed';
+  }
+  return res.status(200).json(out);
+});
+
+// ---------------------------------------------------------------------------
 // Natural-language website editing (works on Vercel — uses the GitHub API).
 //
 //   POST /api/website/plan   { message }            -> read-only plan + diffs

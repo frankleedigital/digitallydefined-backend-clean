@@ -62,6 +62,58 @@ export async function handleDispatch(req, res) {
     }
   }
 
+  // Hermes / Mentor availability.
+  //
+  // The public site polls this to decide whether to show the mentor widget's
+  // live indicator. It must never fail hard: the widget degrades to "offline"
+  // rather than blanking the page, so every branch returns 200 with an
+  // `available` boolean and a reason.
+  if (action === 'hermes.status' || action === 'mentor.status' || action === 'agent.hermes-status') {
+    const status = { available: false, provider: null, model: null, reason: null };
+    try {
+      const { isOmniRouteConfigured, describeRouting } = await import('../services/aiRouter.js');
+      if (isOmniRouteConfigured()) {
+        status.available = true;
+        status.provider = 'omniroute';
+        status.reason = 'gateway configured';
+        try { status.routing = describeRouting(); } catch { /* diagnostics are best effort */ }
+      } else {
+        status.reason = 'AI gateway not configured';
+      }
+    } catch (err) {
+      status.reason = err.message || 'status check failed';
+    }
+    return res.status(200).json({ success: true, ...status, timestamp: Date.now() });
+  }
+
+  // Mentor conversation — answers a build-phase question with the Hermes
+  // business-partner voice. Same persona as business.partner, but scoped to
+  // short, contextual guidance rather than full business analysis.
+  if (action === 'mentor' || action === 'mentor.dev' || action === 'agent.mentor') {
+    const question = String(body.message || body.input || '').trim();
+    if (!question) return res.status(400).json({ success: false, error: 'message is required' });
+    try {
+      const { aiRouter } = await import('../services/aiRouter.js');
+      const systemPrompt =
+        'You are Hermes, the DigitallyDefined mentor. Answer the build-phase question directly and ' +
+        'practically in under six sentences. Calm, specific, no hype, no emoji, no markdown headings. ' +
+        'If you do not know something, say so.';
+      const result = await aiRouter.generate(null, question, { job: 'chat', systemPrompt, jsonMode: false });
+      if (result.error) throw new Error(result.error);
+      return res.status(200).json({
+        success: true,
+        reply: result.reply,
+        data: { reply: result.reply },
+        provider: result.provider,
+        model: result.model,
+        timestamp: Date.now(),
+      });
+    } catch (err) {
+      logger.error('Mentor dispatch failed', { error: err.message });
+      return res.status(500).json({ success: false, error: err.message || 'Mentor failed' });
+    }
+  }
+
   // Quiz — routes to the real quizDispatch handler (quiz / quiz.complete /
   // agent.quiz / quiz.submit all persist server-side).
   if (action === 'quiz' || action === 'quiz.complete' || action === 'quiz.submit' || action === 'agent.quiz') {
