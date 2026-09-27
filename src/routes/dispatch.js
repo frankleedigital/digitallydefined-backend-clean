@@ -89,29 +89,56 @@ export async function handleDispatch(req, res) {
   // Mentor conversation — answers a build-phase question with the Hermes
   // business-partner voice. Same persona as business.partner, but scoped to
   // short, contextual guidance rather than full business analysis.
+  //
+  // Contract: this ALWAYS answers 200. A degraded model chain is a normal
+  // operating state (the gateway can be down or a provider rate-limited), not a
+  // client error — the widget renders a graceful message either way, so a 500
+  // would break the mentor panel.
   if (action === 'mentor' || action === 'mentor.dev' || action === 'agent.mentor') {
     const question = String(body.message || body.input || '').trim();
     if (!question) return res.status(400).json({ success: false, error: 'message is required' });
+
+    const systemPrompt =
+      'You are Hermes, the DigitallyDefined mentor. Answer the build-phase question directly and ' +
+      'practically in under six sentences. Calm, specific, no hype, no emoji, no markdown headings. ' +
+      'If you do not know something, say so.';
+
+    let result = null;
     try {
       const { aiRouter } = await import('../services/aiRouter.js');
-      const systemPrompt =
-        'You are Hermes, the DigitallyDefined mentor. Answer the build-phase question directly and ' +
-        'practically in under six sentences. Calm, specific, no hype, no emoji, no markdown headings. ' +
-        'If you do not know something, say so.';
-      const result = await aiRouter.generate(null, question, { job: 'chat', systemPrompt, jsonMode: false });
-      if (result.error) throw new Error(result.error);
+      result = await aiRouter.generate(null, question, { job: 'chat', systemPrompt, jsonMode: false });
+    } catch (err) {
+      // Never let a provider throw escape as a 5xx.
+      logger.error('Mentor provider threw', { error: err.message });
+      result = { error: err.message || 'provider threw' };
+    }
+
+    if (result.error || !result.reply) {
+      const reason = result.error || 'provider returned an empty reply';
+      logger.warn('Mentor unavailable', { error: reason });
       return res.status(200).json({
-        success: true,
-        reply: result.reply,
-        data: { reply: result.reply },
-        provider: result.provider,
-        model: result.model,
+        success: false,
+        available: false,
+        degraded: true,
+        reply: 'Hermes is not answering right now. Your work is saved — try again in a moment.',
+        error: reason,
+        data: { reply: null },
+        provider: result.provider || null,
+        model: result.model || null,
         timestamp: Date.now(),
       });
-    } catch (err) {
-      logger.error('Mentor dispatch failed', { error: err.message });
-      return res.status(500).json({ success: false, error: err.message || 'Mentor failed' });
     }
+
+    return res.status(200).json({
+      success: true,
+      available: true,
+      degraded: false,
+      reply: result.reply,
+      data: { reply: result.reply },
+      provider: result.provider,
+      model: result.model,
+      timestamp: Date.now(),
+    });
   }
 
   // Quiz — routes to the real quizDispatch handler (quiz / quiz.complete /

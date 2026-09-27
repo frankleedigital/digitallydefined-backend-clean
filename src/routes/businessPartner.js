@@ -186,22 +186,58 @@ export async function handleBusinessPartner(req, res) {
     });
 
     if (result.error) {
+      // The model chain failing is a degraded state, not a client error. The
+      // dashboard renders a message either way, so return 200 with a flag
+      // rather than 500 (which previously blanked the chat panel).
       logger.error('Business partner AI failed', { error: result.error });
-      return res.status(500).json({ error: 'AI failed', details: result.error });
+      return res.status(200).json({
+        success: false,
+        available: false,
+        degraded: true,
+        error: 'AI failed',
+        details: result.error,
+        reply:
+          'Hermes is not answering right now. Your dashboard data is safe - try again in a moment.',
+        businessInsights: null,
+        provider: result.provider || null,
+        model: result.model || null,
+        timestamp: Date.now(),
+      });
     }
 
     let businessInsights = null;
     let reply = result.reply;
     try {
-      const cleaned = reply.replace(/^\`\`\`(?:json)?\\s*/i, '').replace(/\\s*\`\`\`$/i, '').trim();
-      const parsed = JSON.parse(cleaned);
-      if (parsed.summary || parsed.revenue_signals) {
+      // Strip an optional JSON fence, then parse. These regexes were previously
+      // double-escaped (they matched literal backslashes), so the JSON block was
+      // never parsed and leaked into the chat prose as raw fenced text.
+      const cleaned = reply.replace(/^`(?:json)?\s*/i, '').replace(/\s*`$/i, '').trim();
+      const braceStart = cleaned.indexOf('{');
+      const braceEnd = cleaned.lastIndexOf('}');
+
+      let parsed = null;
+      if (braceStart !== -1 && braceEnd > braceStart) {
+        try {
+          parsed = JSON.parse(cleaned);
+        } catch {
+          try {
+            parsed = JSON.parse(cleaned.slice(braceStart, braceEnd + 1));
+          } catch {
+            parsed = null;
+          }
+        }
+      }
+
+      if (parsed && (parsed.summary || parsed.revenue_signals)) {
         businessInsights = parsed;
-        const jsonMatch = reply.match(/\{[\\s\\S]*\}/);
-        if (jsonMatch) reply = reply.substring(0, reply.indexOf(jsonMatch[0])).trim() || 'Here are my insights:';
+        // Keep only the prose; the structured fields render separately.
+        // Cut at the first fence OR brace so a trailing ` never leaks in.
+        const fenceAt = cleaned.indexOf('`');
+        const cut = fenceAt !== -1 && fenceAt < braceStart ? fenceAt : braceStart;
+        reply = cleaned.slice(0, cut).trim() || 'Here are my insights:';
       }
     } catch {
-      // Not JSON — use raw reply
+      // Not JSON - use raw reply
     }
 
     return res.status(200).json({

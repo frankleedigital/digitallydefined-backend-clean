@@ -81,20 +81,54 @@ app.post('/api/website/scan', (req, res) => {
 app.get('/api/hermes/status', async (req, res) => {
   if (!checkDashboardApiKey(req)) return res.status(401).json({ error: 'Unauthorized' });
   res.setHeader('Content-Type', 'application/json');
-  const out = { success: true, available: false, provider: null, model: null, reason: null };
+
+  const out = {
+    success: true,
+    available: false,
+    configured: false,
+    degraded: false,
+    provider: null,
+    model: null,
+    reason: null,
+    gateway: null,
+  };
+
   try {
     const aiRouter = await import('./services/aiRouter.js');
-    if (aiRouter.isOmniRouteConfigured()) {
-      out.available = true;
+    out.configured = aiRouter.isOmniRouteConfigured();
+    if (out.configured) {
       out.provider = 'omniroute';
-      out.reason = 'gateway configured';
       try { out.routing = aiRouter.describeRouting(); } catch { /* diagnostics best effort */ }
     } else {
       out.reason = 'AI gateway not configured';
     }
+
+    // Probe the gateway so the widget reflects real availability rather than
+    // configuration alone. A dead gateway must read as unavailable, otherwise
+    // the mentor shows a green light it cannot honour.
+    if (out.configured) {
+      const probe = await aiRouter.callOmniRoute(
+        aiRouter.resolveJobModel('fast'),
+        'ping',
+        { job: 'fast', timeout: 8000 }
+      );
+      if (probe.error) {
+        out.available = false;
+        out.degraded = true;
+        out.reason = probe.error;
+        out.gateway = 'unreachable';
+      } else {
+        out.available = true;
+        out.model = probe.model || null;
+        out.reason = 'gateway responding';
+        out.gateway = 'ok';
+      }
+    }
   } catch (err) {
     out.reason = err.message || 'status check failed';
+    out.gateway = 'error';
   }
+
   return res.status(200).json(out);
 });
 
