@@ -14,6 +14,8 @@ import { handleDispatch } from './routes/dispatch.js';
 import { handleOnboarding } from './routes/onboardingDispatch.js';
 import { checkDashboardApiKey } from './middleware/auth.js';
 import * as websiteEditor from './services/websiteEditor.js';
+import * as githubEditor from './services/githubEditor.js';
+import { planWebsiteEdit, applyWebsitePlan, looksLikeWebsiteEdit } from './services/websitePlanner.js';
 
 const app = express();
 const PORT = env.port;
@@ -69,6 +71,51 @@ app.post('/api/website/scan', (req, res) => {
     res.status(500).json({ ok: false, error: err.message });
   }
 });
+
+// ---------------------------------------------------------------------------
+// Natural-language website editing (works on Vercel — uses the GitHub API).
+//
+//   POST /api/website/plan   { message }            -> read-only plan + diffs
+//   POST /api/website/apply  { plan, confirm }      -> commits the plan
+//
+// Planning never writes. Applying requires the caller to send back the plan
+// (and optionally echo planId) so a preview always precedes a real commit.
+// ---------------------------------------------------------------------------
+app.post('/api/website/plan', async (req, res) => {
+  if (!checkDashboardApiKey(req)) return res.status(401).json({ error: 'Unauthorized' });
+  const message = String((req.body || {}).message || '').trim();
+  if (!message) return res.status(400).json({ ok: false, error: 'message is required' });
+  if (!githubEditor.isGithubEditorConfigured()) {
+    return res.status(503).json({
+      ok: false,
+      error: 'Website editing is not configured on this deployment.',
+      hint: 'Set WEBSITE_GITHUB_TOKEN in the backend environment.',
+    });
+  }
+  try {
+    const plan = await planWebsiteEdit(message);
+    res.status(200).json({ ok: true, ...plan });
+  } catch (err) {
+    logger.error('Website plan failed', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.post('/api/website/apply', async (req, res) => {
+  if (!checkDashboardApiKey(req)) return res.status(401).json({ error: 'Unauthorized' });
+  const { plan, confirm } = req.body || {};
+  if (!plan || !Array.isArray(plan.edits)) {
+    return res.status(400).json({ ok: false, error: 'plan is required' });
+  }
+  try {
+    const result = await applyWebsitePlan(plan, { confirm });
+    res.status(200).json({ ok: true, ...result });
+  } catch (err) {
+    logger.error('Website apply failed', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 app.post('/api/website/edit', (req, res) => {
   if (!checkDashboardApiKey(req)) return res.status(401).json({ error: 'Unauthorized' });
   const { file, content } = req.body || {};

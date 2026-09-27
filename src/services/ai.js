@@ -97,11 +97,12 @@ async function callCheaperInference(messages, model, timeoutMs = constants.AI_TI
 }
 
 export async function callAI(prompt, options = {}) {
-  const { mode = 'freeMode', systemPrompt, model: modelOverride, jsonMode = false } = options;
+  const { mode = 'freeMode', systemPrompt, model: modelOverride, jsonMode = false, job = 'chat' } = options;
   if (!prompt || typeof prompt !== 'string' || !prompt.trim()) throw new ValidationError('Invalid prompt: must be a non-empty string');
 
-  // Route through aiRouter: Vertex Gemini -> OpenRouter -> Agnes. OmniRoute disabled.
-  const result = await aiRouter.generate(modelOverride || null, prompt, { mode, systemPrompt, jsonMode });
+  // Route through aiRouter: OmniRoute -> Vertex Gemini -> OpenRouter -> Agnes.
+  // `job` selects the model (see JOB_MODELS in aiRouter).
+  const result = await aiRouter.generate(modelOverride || null, prompt, { mode, job, systemPrompt, jsonMode });
 
   if (jsonMode && result.reply && typeof result.reply === 'string') {
     try {

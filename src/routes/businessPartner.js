@@ -5,6 +5,48 @@ import { ValidationError } from '../utils/errorHandler.js';
 import logger from '../utils/logger.js';
 import { formatUSD, safeNumber } from '../utils/formatters.js';
 import { fetchFacebookGroup, fetchBrevoStats, fetchSheetsData } from '../services/integrations.js';
+import * as githubEditor from '../services/githubEditor.js';
+import { looksLikeWebsiteEdit } from '../services/websitePlanner.js';
+import { JOB_TYPES } from '../services/aiRouter.js';
+
+/** Render a plan as human-readable text for the chat bubble. */
+function buildPlanPreview(plan) {
+  const lines = [`Here's the change I'm ready to make:`, ``];
+  lines.push(plan.understood || 'Website update');
+  lines.push('');
+
+  for (const edit of plan.edits || []) {
+    const changed = (edit.hunks || [])
+      .flat()
+      .filter((h) => h.type === 'added').length;
+    lines.push(`- ${edit.path} (${changed} line${changed === 1 ? '' : 's'} added)`);
+  }
+
+  for (const note of plan.notes || []) lines.push(`  ${note}`);
+
+  if ((plan.warnings || []).length) {
+    lines.push('');
+    lines.push('I skipped:');
+    for (const w of plan.warnings) lines.push(`  ${w}`);
+  }
+
+  lines.push('');
+  lines.push('Nothing is changed yet — approve this and I will commit it.');
+  return lines.join('\n');
+}
+
+/** Render the outcome of applying a plan. */
+function summarizeAppliedEdits(result) {
+  const lines = [];
+  for (const r of result.appliedEdit || []) {
+    if (r.ok) {
+      lines.push(`Committed ${r.file}${r.created ? ' (new file)' : ''}. A deploy will follow.`);
+    } else {
+      lines.push(`Could not change ${r.file}: ${r.error}`);
+    }
+  }
+  return lines.join('\n') || 'No changes were applied.';
+}
 
 const SYSTEM_PROMPT = `You are Hermes — Francesca's AI business partner at DigitallyDefined.
 
@@ -37,7 +79,12 @@ BUSINESS INTELLIGENCE STRUCTURE (return this JSON at the end):
 RULES:
 - Never say "as an AI". You're her partner.
 - Never hallucinate data. If you don't know, say so.
-- Always end with a next step.`;
+- Always end with a next step.
+
+WHEN SHE ASKS YOU TO CHANGE THE WEBSITE
+- "Fix the homepage", "change the hero headline", "update the pricing copy" — these are CODE REQUESTS, not business questions.
+- If the request names a page, file, component, or copy change, say plainly what you are about to change and hand the change to the website editor for approval.
+- The edit is reviewed before it is committed, so never claim the change is already done. Say the change is ready for review.`;
 
 export async function handleBusinessPartner(req, res) {
   try {
@@ -48,6 +95,53 @@ export async function handleBusinessPartner(req, res) {
     if (!userMessage) throw new ValidationError('message is required');
 
     logger.info('Business partner request', { length: userMessage.length });
+
+    // --- Website edit path -------------------------------------------------
+    // If this is a code request (not a strategy question), plan the change and
+    // return a preview. Nothing is written here — the user must approve via
+    // POST /api/website/apply before a commit happens.
+    if (body.applyPlan) {
+      const { applyWebsitePlan } = await import('../services/websitePlanner.js');
+      const result = await applyWebsitePlan(body.applyPlan, { confirm: body.confirm });
+      return res.status(200).json({
+        reply: summarizeAppliedEdits(result),
+        appliedEdit: result.appliedEdit,
+        provider: 'hermes',
+        model: 'website-editor',
+        timestamp: Date.now(),
+      });
+    }
+
+    if (looksLikeWebsiteEdit(userMessage)) {
+      const { planWebsiteEdit } = await import('../services/websitePlanner.js');
+      if (!githubEditor.isGithubEditorConfigured()) {
+        logger.warn('Website edit requested but GitHub editor is not configured');
+      } else {
+        try {
+          const plan = await planWebsiteEdit(userMessage);
+          return res.status(200).json({
+            reply: plan.needsMoreContext
+              ? plan.question
+              : buildPlanPreview(plan),
+            plan,
+            needsApproval: !plan.needsMoreContext,
+            provider: 'hermes',
+            model: 'website-editor',
+            timestamp: Date.now(),
+          });
+        } catch (planErr) {
+          logger.error('Website plan failed inside business partner', planErr);
+          return res.status(200).json({
+            reply:
+              `I couldn't turn that into a safe change yet: ${planErr.message}. ` +
+              'Nothing was modified.',
+            provider: 'hermes',
+            model: 'website-editor',
+            timestamp: Date.now(),
+          });
+        }
+      }
+    }
 
     let businessContext = '';
     try {
@@ -79,8 +173,14 @@ export async function handleBusinessPartner(req, res) {
       { role: 'user', content: userMessage }
     ];
 
+    // The client may hint at the job class (e.g. the dashboard sends
+    // job:"reasoning"). Default to 'reasoning' — this endpoint does strategic
+    // work, not casual chat.
+    const job = JOB_TYPES.includes(body.job) ? body.job : 'reasoning';
+
     const result = await aiRouter.generate(null, userMessage, {
       mode: 'ultraMode',
+      job,
       systemPrompt,
       jsonMode: true
     });

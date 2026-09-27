@@ -61,7 +61,12 @@ export async function handleChat(req, res) {
 
     const systemPrompt = (params.systemPrompt || constants.DEFAULT_CHAT_SYSTEM_PROMPT) + websiteContext;
 
-    const result = await aiRouter.generate(null, prompt, { mode: params.mode, systemPrompt, jsonMode: false });
+    const result = await aiRouter.generate(null, prompt, {
+    mode: params.mode,
+    job: 'chat',
+    systemPrompt,
+    jsonMode: false,
+  });
     if (result.error) throw result.error;
 
     let reply = typeof result.reply === 'string' ? result.reply : JSON.stringify(result.reply);

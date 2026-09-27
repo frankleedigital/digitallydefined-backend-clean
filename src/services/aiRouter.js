@@ -12,7 +12,12 @@ import logger from '../utils/logger.js';
 const DEFAULT_TIMEOUT = constants.AI_TIMEOUT_MS;
 
 // Model resolution
-export function resolvePrimaryModel(mode = 'freeMode') {
+//
+// NOTE: `mode` is accepted for call-site compatibility but is intentionally not
+// used to pick a model. Model selection is per-JOB (see JOB_MODELS below), not
+// per-mode. Older code assumed mode freeMode/proMode/ultraMode chose the model;
+// it never did, so every call silently used env.omniroute.model.
+export function resolvePrimaryModel() {
   return env.vertex.model || 'gemini-1.5-flash';
 }
 export function openrouterModel() {
@@ -20,6 +25,38 @@ export function openrouterModel() {
 }
 export function agnesModel() {
   return env.agnes.model || 'default';
+}
+
+/**
+ * Per-job OmniRoute model, chosen for what the job actually needs.
+ *
+ * These are your gateway combos, so OmniRoute handles the provider selection
+ * and failover internally. Each is overridable per-job via JOB_MODEL_OVERRIDES
+ * (JSON object) so you can retune one job without touching code.
+ *
+ *   chat      - conversational coaching, needs a natural voice
+ *   reasoning - strategy/analysis, needs depth
+ *   coding    - must emit valid complete files
+ *   vision    - reads images/screenshots
+ *   json      - strict structured output
+ *   fast      - short latency-sensitive summaries
+ */
+export const JOB_MODELS = {
+  chat: process.env.AI_MODEL_CHAT || 'omni/free-best',
+  reasoning: process.env.AI_MODEL_REASONING || 'omni/premium-blueminds',
+  coding: process.env.AI_MODEL_CODING || 'omni/free-coding',
+  vision: process.env.AI_MODEL_VISION || 'omni/free-vision',
+  json: process.env.AI_MODEL_JSON || 'omni/free-best',
+  fast: process.env.AI_MODEL_FAST || 'omni/free-best',
+  fallback: process.env.AI_MODEL_FALLBACK || 'omni/free-fallback',
+};
+
+export const JOB_TYPES = Object.keys(JOB_MODELS);
+
+/** Resolve the OmniRoute model id for a job type. */
+export function resolveJobModel(job) {
+  const key = JOB_TYPES.includes(job) ? job : 'chat';
+  return JOB_MODELS[key] || JOB_MODELS.chat;
 }
 
 // Provider availability
@@ -219,17 +256,22 @@ function buildMessages(prompt, systemPrompt) {
 }
 
 // Unified routing: OmniRoute (primary) -> Vertex Gemini -> OpenRouter -> Agnes -> error
+//
+// `options.job` selects the OmniRoute model (see JOB_MODELS). An explicit
+// `model` argument still wins, for callers that need a one-off override.
 export async function generate(model, prompt, options = {}) {
+  const job = options.job || 'chat';
+  const omnirouteModel = model || resolveJobModel(job);
   const attempts = [];
 
   // PRIMARY: OmniRoute (when configured)
   if (isOmniRouteConfigured()) {
-    attempts.push({ name: 'omniroute', fn: () => callOmniRoute(model, prompt, options) });
+    attempts.push({ name: 'omniroute', fn: () => callOmniRoute(omnirouteModel, prompt, options) });
   }
 
   // FALLBACK: Vertex Gemini (when configured)
   if (isVertexConfigured()) {
-    attempts.push({ name: 'vertex-gemini', fn: () => callVertexGemini(model, prompt, options) });
+    attempts.push({ name: 'vertex-gemini', fn: () => callVertexGemini(omnirouteModel, prompt, options) });
   }
 
   // FALLBACK: OpenRouter (when configured)
@@ -240,11 +282,6 @@ export async function generate(model, prompt, options = {}) {
   // FALLBACK: Agnes (when configured)
   if (isAgnesConfigured()) {
     attempts.push({ name: 'agnes', fn: () => callAgnes(agnesModel(), prompt, options) });
-  }
-
-  // If nothing is configured, try Vertex Gemini as last resort (it may have partial config)
-  if (attempts.length === 0 && isVertexConfigured()) {
-    attempts.push({ name: 'vertex-gemini', fn: () => callVertexGemini(model, prompt, options) });
   }
 
   let lastError = null;
@@ -264,7 +301,7 @@ export async function generate(model, prompt, options = {}) {
   }
 
   const error = 'All AI providers failed. Last error: ' + (lastError || 'no provider available');
-  logger.error('AI routing exhausted', { error });
+  logger.error('AI routing exhausted', { error, job });
   return { reply: '', provider: null, model: null, error };
 }
 

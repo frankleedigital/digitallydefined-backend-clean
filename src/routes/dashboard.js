@@ -33,7 +33,13 @@ export async function handleDashboard(req, res) {
 
     let aiBrief = 'AI brief disabled';
     if (context.includeAiBrief !== false) {
-      const aiBriefResult = await aiRouter.generate(null, 'Generate a brief business intelligence summary based on: Community: ' + communityCount + ', Email subscribers: ' + ((brevoData && brevoData.totalSubscribers) || 0) + ', Revenue: ' + revenue, { mode: 'ultraMode', systemPrompt: 'You are a business analyst.' });
+      const aiBriefResult = await aiRouter.generate(
+    null,
+    'Generate a brief business intelligence summary based on: Community: ' + communityCount
+      + ', Email subscribers: ' + ((brevoData && brevoData.totalSubscribers) || 0)
+      + ', Revenue: ' + revenue,
+    { mode: 'ultraMode', job: 'fast', systemPrompt: 'You are a business analyst.' }
+  );
       aiBrief = aiBriefResult.error ? 'Unable to generate AI brief' : stripMarkdown(aiBriefResult.reply);
     }
 
