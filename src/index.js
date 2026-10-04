@@ -207,6 +207,14 @@ app.get('/api/active-model', handleGetActiveModel);
 
 app.post('/api/onboarding', handleOnboarding);
 app.post('/api/dispatch', handleDispatch);
+// Bare "/api" must route to the dispatcher as well. The "/api/*" pattern only
+// matches paths that have something after the slash, so a POST to "/api"
+// (which is what getSupabaseEdgeUrl() returns for action-based calls) fell
+// through to the 404 handler and broke every dashboard sync (Notion,
+// analytics, integrations). Express treats "/api" and "/api/" as distinct
+// routes, so both are registered explicitly.
+app.post('/api', handleDispatch);
+app.post('/api/', handleDispatch);
 app.post('/api/*', handleDispatch);
 
 // Test endpoint (no auth required)

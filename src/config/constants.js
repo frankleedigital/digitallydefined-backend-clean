@@ -11,9 +11,37 @@ export const ALLOWED_ORIGINS = [
   'https://dashboard.digitallydefined.online',
   'https://digitallydefined.online',
   'https://www.digitallydefined.online',
+  'https://os.digitallydefined.online',
+  'https://api.digitallydefined.online',
   'http://localhost:3000',
   'http://localhost:3001',
   'http://localhost:5173',
+];
+
+/**
+ * Extra origins supplied at runtime (comma separated) so preview deployments or
+ * extra hosts can be enabled without a code change.
+ */
+export const EXTRA_ALLOWED_ORIGINS = String(process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map((origin) => origin.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
+
+/**
+ * Origin patterns that are always permitted:
+ *  - any localhost / 127.0.0.1 port (Vite picks a free port when 5173 is taken)
+ *  - private LAN addresses, so the site can be tested from another device
+ *  - Vercel preview deployments of the first-party apps
+ *
+ * These are matched as patterns rather than exact strings so preview hosts and
+ * non-default dev ports do not silently break the browser's CORS check, which
+ * surfaces as an opaque "Failed to fetch" in the UI.
+ */
+export const ORIGIN_PATTERNS = [
+  /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i,
+  /^https?:\/\/192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$/i,
+  /^https?:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/i,
+  /^https:\/\/([a-z0-9-]+\.)*vercel\.app$/i,
 ];
 
 export const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
@@ -76,6 +104,8 @@ export const AI_PROVIDER_ORDER = {
 
 export default {
   ALLOWED_ORIGINS,
+  EXTRA_ALLOWED_ORIGINS,
+  ORIGIN_PATTERNS,
   RATE_LIMIT_WINDOW_MS,
   RATE_LIMIT_MAX_REQUESTS,
   CACHE_TTL_MS,
