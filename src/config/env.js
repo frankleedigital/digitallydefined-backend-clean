@@ -359,7 +359,19 @@ export function isSupabaseConfigured() {
 }
 
 export function isFastapiConfigured() {
-  return !!env.fastapi.baseUrl;
+  // baseUrl alone is not evidence of a deployment: config falls back to
+  // http://localhost:8000, so the previous `!!baseUrl` check always passed and
+  // /api/health reported FastAPI as configured while nothing was listening.
+  // Require a real key, and reject the localhost default in production.
+  // (The richer check lives in services/fastapi.js — it cannot be imported here
+  // because that module imports this config, which would be a circular import.)
+  const baseUrl = String(env.fastapi.baseUrl || '').trim();
+  const apiKey = String(env.fastapi.apiKey || '').trim();
+  if (!baseUrl || !apiKey) return false;
+  if (process.env.NODE_ENV === 'production' && /^https?:\/\/localhost(:\d+)?$/i.test(baseUrl)) {
+    return false;
+  }
+  return true;
 }
 
 export function isInstagramConfigured() {

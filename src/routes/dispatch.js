@@ -17,6 +17,20 @@ export async function handleDispatch(req, res) {
   logger.info('Dispatch request', { action });
   console.log('[dispatch] action:', action);
 
+  // FastAPI microservice tools (fastapi.<tool>).
+  // Checked BEFORE the agent-name branch below: `fastapi.niche` would otherwise
+  // be treated as an agent call, because the code strips a leading `agent.` and
+  // then matches the bare name.
+  if (action.startsWith('fastapi.')) {
+    try {
+      const { default: fastapiRoute } = await import('./fastapiDispatch.js');
+      return await fastapiRoute.handleFastapi(req, res);
+    } catch (err) {
+      logger.error('FastAPI dispatch failed', { action, error: err.message });
+      return res.status(500).json({ success: false, error: err.message || 'FastAPI request failed' });
+    }
+  }
+
   // Agent endpoints (niche, roadmap, scorecard, product, social, trends,
   // competition, opportunities, audience).
   // NOTE: `quiz` is intentionally NOT here — quiz actions route to

@@ -206,6 +206,19 @@ app.get('/api/models', handleGetModels);
 app.get('/api/active-model', handleGetActiveModel);
 
 app.post('/api/onboarding', handleOnboarding);
+
+// FastAPI microservice reachability. Always answers 200 with an `reachable`
+// boolean so the website can hide unavailable tools instead of failing.
+app.get('/api/fastapi/status', async (req, res) => {
+  try {
+    const { getFastapiStatus } = await import('./services/fastapi.js');
+    const status = await getFastapiStatus();
+    return res.status(200).json({ success: true, ...status });
+  } catch (err) {
+    return res.status(200).json({ success: true, reachable: false, reason: err.message });
+  }
+});
+
 app.post('/api/dispatch', handleDispatch);
 // Bare "/api" must route to the dispatcher as well. The "/api/*" pattern only
 // matches paths that have something after the slash, so a POST to "/api"
