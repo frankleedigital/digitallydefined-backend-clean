@@ -92,7 +92,7 @@ const env = {
   gemini: {
     apiKey: (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '').trim(),
     baseUrl: (process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai').trim(),
-    model: (process.env.GEMINI_MODEL || 'gemini-2.5-flash').trim(),
+    model: (process.env.GEMINI_MODEL || 'gemini-3.8-flash').trim(),
   },
   cheaperInference: {
     apiKey: (process.env.CHEAPER_INFERENCE_API_KEY || '').trim(),

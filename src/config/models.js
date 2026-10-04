@@ -43,7 +43,7 @@ export const OMNIROUTE_MODELS = [
 
   // ── Gemini / Vertex paid credits ──
   { value: 'vertex/gemini-2.5-pro', tier: 'gemini', label: 'Gemini 2.5 Pro', desc: 'Vertex paid credits', verified: 'degraded', issue: 'Vertex quota exhausted — resets automatically.' },
-  { value: 'vertex/gemini-2.5-flash', tier: 'gemini', label: 'Gemini 2.5 Flash', desc: 'Vertex paid credits', verified: 'degraded', issue: 'Vertex quota exhausted — resets automatically.' },
+  { value: 'vertex/gemini-3.8-flash', tier: 'gemini', label: 'Gemini 2.5 Flash', desc: 'Vertex paid credits', verified: 'degraded', issue: 'Vertex quota exhausted — resets automatically.' },
   { value: 'vertex/gemini-2.0-flash', tier: 'gemini', label: 'Gemini 2.0 Flash', desc: 'Vertex paid credits', verified: 'unverified' },
   { value: 'vertex/claude-sonnet-4-5', tier: 'gemini', label: 'Claude Sonnet 4.5 (Vertex)', desc: 'Vertex paid credits', verified: 'degraded', issue: 'Vertex quota exhausted — resets automatically.' },
   { value: 'gemini-2.5-pro', tier: 'gemini', label: 'gemini-2.5-pro', desc: 'Bare id (your request)', verified: 'degraded', issue: 'OmniRoute routed this to t3.chat, whose credentials are invalid.' },
