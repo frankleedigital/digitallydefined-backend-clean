@@ -1,0 +1,59 @@
+# Supabase CLI configuration — CANONICAL edge-function tree.
+# Project: DigitallyDefined (ref dijjlppdljpcgyoakdnq)
+#
+# Consolidated 2026-10-09 from the two previously-linked trees:
+#   - digitallydefined-os-backend/supabase  (functions: analytics, followup, hermes,
+#     notion-sync, optimization-loop, optimization-loop-weekly, post-publisher,
+#     sellable, sync)
+#   - workspace-root supabase/              (functions: content, omniroute,
+#     quiz-roadmap, quiz-submit, reputation)
+# The [functions.*] entries below restore the schedules + verify_jwt flags that
+# existed before consolidation. Functions with no entry here (hermes, followup,
+# sync, sellable, post-publisher) had none in either source tree and deploy with
+# the CLI default — do not add verify_jwt=false to them without review, since
+# they authenticate via service-role key inside the function.
+#
+# `project_id` is the correct required top-level key (see Supabase CLI docs);
+# an earlier malformed `[project] ref = ...` table was replaced here.
+project_id = "dijjlppdljpcgyoakdnq"
+
+# --- Cron-scheduled functions (from os-backend tree) ---
+
+[functions.optimization-loop]
+verify_jwt = false
+# Daily optimization loop: cluster + persist optimization_signals -> user_clusters
+schedule = "0 5 * * *"
+
+[functions.optimization-loop-weekly]
+verify_jwt = false
+# Weekly report: invoke optimization-loop with { "mode": "weekly" }
+schedule = "0 6 * * 1"
+
+[functions.analytics]
+verify_jwt = false
+
+[functions.notion-sync]
+verify_jwt = false
+schedule = "0 */6 * * *"
+
+# --- Public / gateway endpoints (from workspace-root tree) ---
+
+[functions.omniroute]
+# OmniRoute AI gateway proxy.
+verify_jwt = false
+
+[functions.quiz-submit]
+# Public quiz submission endpoint (called from the website).
+verify_jwt = false
+
+[functions.quiz-roadmap]
+# Public read endpoint: latest stored roadmap for an email.
+verify_jwt = false
+
+[functions.reputation]
+# Niche reputation intelligence: evaluates demand + trust signals.
+verify_jwt = false
+
+[functions.content]
+# Website content store: read/write merged site copy.
+verify_jwt = false
